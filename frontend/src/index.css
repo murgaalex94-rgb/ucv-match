@@ -1,0 +1,301 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  min-height: 100vh;
+  background-color: rgb(248 250 252);
+}
+
+/* === Stream Chat Theme — UCV Match x WhatsApp === */
+.str-chat {
+  --str-chat__primary-color: #0f2a5c;
+  --str-chat__active-primary-color: #0f2a5c;
+  --str-chat__surface-color: #ffffff;
+  --str-chat__secondary-surface-color: #f5f7fa;
+  --str-chat__primary-text-color: #1a1a2e;
+  --str-chat__secondary-text-color: #6b7280;
+
+  /* Outgoing (user) bubble: dark blue */
+  --str-chat__chat-bg-outgoing: #0f2a5c;
+  --str-chat__chat-text-outgoing: #ffffff;
+  --str-chat__chat-border-outgoing: #0f2a5c;
+  --str-chat__chat-bg-attachment-outgoing: #0f2a5c;
+
+  /* Incoming (other) bubble: light gray */
+  --str-chat__chat-bg-incoming: #f3f4f6;
+  --str-chat__chat-text-incoming: #1f2937;
+  --str-chat__chat-border-incoming: #e5e7eb;
+  --str-chat__chat-bg-attachment-incoming: #e5e7eb;
+}
+
+/* Bubbles sent by user — WhatsApp style tail */
+.str-chat__message--me .str-chat__message-inner .str-chat__message-bubble {
+  justify-self: flex-end;
+  border-radius: 16px 16px 4px 16px;
+}
+
+.str-chat__message--me .str-chat__message-inner .str-chat__message-text-inner {
+  border-radius: 16px 16px 4px 16px !important;
+}
+
+/* Bubbles received — WhatsApp style tail */
+.str-chat__message--other .str-chat__message-inner .str-chat__message-bubble {
+  border-radius: 16px 16px 16px 4px;
+}
+
+/* Message list background */
+.str-chat__list {
+  background: transparent;
+  padding: 8px 0;
+}
+
+/* Timestamp */
+.str-chat__message-data {
+  margin-top: 2px;
+  font-size: 0.6875rem;
+  color: #9ca3af;
+}
+
+.str-chat__message--me .str-chat__message-data {
+  justify-content: flex-end;
+}
+
+/* File attachment - WhatsApp green card */
+.str-chat__message-attachment-file {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.str-chat__message-attachment-file--item {
+  background-color: #dcfce7;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+}
+
+.str-chat__message-attachment-file--item-text {
+  color: #15803d;
+}
+
+/* Image attachments */
+.str-chat__message-attachment--img {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Reactions row */
+.str-chat__message-reactions {
+  border-radius: 999px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  padding: 2px 8px;
+}
+
+.str-chat__simple-reactions-list {
+  display: flex;
+  gap: 2px;
+}
+
+.str-chat__message-reaction-icon {
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.str-chat__message-reaction-icon:hover {
+  transform: scale(1.25);
+}
+
+/* Input composer - WhatsApp style */
+.str-chat__input {
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  padding: 12px 16px;
+}
+
+.str-chat__input-textarea {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  min-height: 44px;
+  max-height: 120px;
+  resize: none;
+}
+
+.str-chat__input-textarea:focus {
+  outline: none;
+  border-color: #0f2a5c;
+  box-shadow: 0 0 0 2px rgba(15, 42, 92, 0.1);
+}
+
+/* Send button - dark blue */
+.str-chat__send-button {
+  background: #0f2a5c;
+  color: white;
+  border-radius: 12px;
+  padding: 8px;
+  transition: opacity 0.2s;
+}
+
+.str-chat__send-button:hover {
+  opacity: 0.9;
+}
+
+/* Channel list */
+.str-chat-channel-list {
+  background: white;
+}
+
+/* Message actions menu (three dots) */
+.str-chat__message-actions-box {
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e5e7eb;
+  padding: 4px;
+  background: white;
+}
+
+.str-chat__message-actions-list {
+  padding: 0;
+}
+
+.str-chat__message-actions-list-item {
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.8125rem;
+}
+
+.str-chat__message-actions-list-item:hover {
+  background: #f3f4f6;
+}
+
+/* Emoji picker */
+.str-chat__emoji-picker {
+  position: absolute;
+  bottom: 60px;
+  left: 12px;
+  z-index: 50;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+/* Remove default Stream header - we use our own */
+.str-chat__channel-header {
+  display: none;
+}
+
+/* Hide Stream's default channel search */
+.str-chat__channel-search {
+  display: none;
+}
+
+/* Custom scrollbar */
+.str-chat__list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.str-chat__list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.str-chat__list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+/* Typing indicator */
+.str-chat__typing-indicator {
+  padding: 4px 16px;
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+/* Date separator */
+.str-chat__date-separator {
+  margin: 16px 0;
+  padding: 0 16px;
+}
+
+.str-chat__date-separator-date {
+  background: #e5e7eb;
+  color: #6b7280;
+  font-size: 0.75rem;
+  padding: 2px 12px;
+  border-radius: 999px;
+}
+
+/* Unread messages separator */
+.str-chat__unread-messages-separator {
+  padding: 0 16px;
+  margin: 8px 0;
+}
+
+/* Message status icon */
+.str-chat__message-status {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.str-chat__message-status-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Quoted message preview */
+.str-chat__quoted-message-preview {
+  border-radius: 8px;
+}
+
+/* Attachment preview in input */
+.str-chat__attachment-preview {
+  border-radius: 12px;
+}
+
+/* Thread */
+.str-chat__thread {
+  border-left: 1px solid #e5e7eb;
+}
+
+.str-chat__thread-header {
+  padding: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
+}
+
+/* Override Stream Chat's default brand-100 to match our dark blue */
+.str-chat {
+  --str-chat__brand-100: #0f2a5c;
+  --str-chat__brand-150: #0f2a5c;
+  --str-chat__brand-900: #ffffff;
+}
+
+/* Hide Stream Chat default file attachment blue bubble (replaced by GreenCardAttachment) */
+.str-chat__message-attachment-file--item,
+.str-chat__message-attachment-file--item__info,
+.str-chat__message-attachment-file--item__first-row,
+.str-chat__message-attachment-file--item__name,
+.str-chat__message-attachment-file--item__data {
+  background: transparent !important;
+}
+.str-chat__message-attachment-file--item {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Ensure message list scroll works properly with custom attachments */
+.str-chat__list {
+  background: transparent !important;
+}
+
+/* Incoming message bubble clean style for text-only messages */
+.str-chat__message--incoming .str-chat__message-text {
+  background: transparent !important;
+}
+.str-chat__message--incoming .str-chat__message-inner {
+  background: transparent !important;
+}
