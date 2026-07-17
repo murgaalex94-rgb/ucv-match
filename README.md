@@ -1,11 +1,11 @@
-# MentorLink
+# UCV Match
 
 Plataforma de mentoría académica que conecta estudiantes juniors con seniors para compartir conocimiento.
 
 ## Estructura del Proyecto
 
 ```
-mentorlink/
+ucv-match/
 ├── backend/          # Spring Boot 3.2.5 + PostgreSQL
 └── frontend/         # React + Vite + TailwindCSS
 ```
@@ -63,7 +63,7 @@ mvn clean install
 mvn spring-boot:run
 ```
 
-El backend iniciará en el puerto 8080. Deberías ver: `Started MentorLinkApplication`
+El backend iniciará en el puerto 8080. Deberías ver: `Started UcvMatchApplication`
 
 ### Terminal 2 - Frontend
 

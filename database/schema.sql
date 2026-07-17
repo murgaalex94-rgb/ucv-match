@@ -1,4 +1,4 @@
--- MentorLink Database Schema
+-- UCV Match Database Schema
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 

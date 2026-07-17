@@ -123,7 +123,7 @@ const Register = () => {
         <div className="relative z-10 text-center px-8">
           <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-sm text-white text-2xl font-bold px-8 py-4 rounded-xl mb-6">
             <GraduationCap className="w-8 h-8" />
-            MentorLink UCV
+            UCV Match
           </div>
           <h2 className="text-white text-3xl font-bold mb-3">Plataforma de Mentoría</h2>
           <p className="text-blue-200 text-lg max-w-md mx-auto">
@@ -153,7 +153,7 @@ const Register = () => {
           <div className="md:hidden flex justify-center mb-6">
             <div className="inline-flex items-center gap-2 bg-red-800 text-white text-lg font-bold px-5 py-2.5 rounded-lg">
               <GraduationCap className="w-6 h-6" />
-              MentorLink UCV
+              UCV Match
             </div>
           </div>
 
