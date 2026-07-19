@@ -1,8 +1,9 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import { supabase } from './lib/supabase'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -41,6 +42,19 @@ function SuspenseWrapper({ children }) {
 function App() {
   const { user, loading } = useAuth()
   const location = useLocation()
+
+  // Keep-alive: evita que Supabase se duerma en plan gratuito
+  useEffect(() => {
+    if (!user) return
+    const interval = setInterval(async () => {
+      try {
+        await supabase.from('profiles').select('id').limit(1)
+      } catch (e) {
+        console.warn('[Keep-alive] Query failed:', e)
+      }
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [user])
 
   if (loading) {
     return (
