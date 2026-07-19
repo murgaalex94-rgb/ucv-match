@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Calendar, MessageSquare, Settings,
-  Globe, BookOpen, Trophy, FileText, Library
+  LayoutDashboard, Users, Calendar, MessageSquare, Settings
 } from 'lucide-react';
 import InviteModal from './InviteModal';
 import { supabase } from '../lib/supabase';
@@ -13,11 +12,6 @@ const menuItems = [
   { icon: Users, label: 'Mentores', route: '/mentores' },
   { icon: Calendar, label: 'Mentorías', route: '/mentorias' },
   { icon: MessageSquare, label: 'Mensajes', route: '/mensajes', badgeKey: 'mensajes' },
-  { icon: Globe, label: 'Comunidad', route: '/comunidad' },
-  { icon: BookOpen, label: 'Mis Cursos', route: '/mis-cursos' },
-  { icon: Trophy, label: 'Logros', route: '/logros' },
-  { icon: FileText, label: 'Reportes', route: '/reportes' },
-  { icon: Library, label: 'Recursos', route: '/recursos' },
   { icon: Settings, label: 'Configuración', route: '/configuracion' },
 ];
 
