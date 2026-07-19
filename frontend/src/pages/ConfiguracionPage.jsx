@@ -299,8 +299,8 @@ export default function ConfiguracionPage() {
                   <p className="text-sm text-gray-500">Usuario</p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="w-full md:w-1/2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombres</label>
                   <input 
                     type="text" 
@@ -309,7 +309,7 @@ export default function ConfiguracionPage() {
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" 
                   />
                 </div>
-                <div>
+                <div className="w-full md:w-1/2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Apellidos</label>
                   <input 
                     type="text" 

@@ -549,7 +549,7 @@ function MentoriasPage() {
           </main>
 
           {/* RIGHT SIDEBAR WIDGETS */}
-          <aside className="lg:col-span-1 flex flex-col gap-6">
+          <aside className="hidden md:block lg:col-span-1 flex flex-col gap-6">
             {/* CALENDAR WIDGET */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sticky top-24 h-fit">
               <div className="flex justify-between items-center mb-4">
@@ -617,7 +617,7 @@ function MentoriasPage() {
       {/* AGENDAR / REPROGRAMAR MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-30 flex items-center justify-center" onClick={() => { setIsModalOpen(false); setEditingSession(null); }}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 z-40 relative" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-auto z-40 relative" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-gray-800 mb-4">{editingSession ? 'Reprogramar Mentoría' : 'Agendar Mentoría'}</h3>
             <div className="space-y-4">
               <div>

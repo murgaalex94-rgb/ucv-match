@@ -380,10 +380,10 @@ export default function MentoresPage() {
 
           {/* HORIZONTAL FILTER BAR */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-            <div className="flex flex-wrap gap-3 items-center">
-              <div className="relative" onClick={e => e.stopPropagation()}>
+            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+              <div className="relative w-full md:w-auto" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setOpenDropdown(openDropdown === 'facultad' ? '' : 'facultad')}
-                  className="bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition whitespace-nowrap">
+                  className="bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto">
                   {facultad || 'Facultad: Todas'} <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${openDropdown === 'facultad' ? 'rotate-180' : ''}`} />
                 </button>
                 {openDropdown === 'facultad' && (
@@ -395,12 +395,12 @@ export default function MentoresPage() {
                   </div>
                 )}
               </div>
-              <div className="relative" onClick={e => e.stopPropagation()}>
+              <div className="relative w-full md:w-auto" onClick={e => e.stopPropagation()}>
                 <button onClick={() => {
                   if (!facultad) return;
                   setOpenDropdown(openDropdown === 'carrera' ? '' : 'carrera')
                 }}
-                  className={`bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition whitespace-nowrap ${!facultad ? 'opacity-50 pointer-events-none' : ''}`}>
+                  className={`bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto ${!facultad ? 'opacity-50 pointer-events-none' : ''}`}>
                   {carrera || 'Carrera: Todas'} <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${openDropdown === 'carrera' ? 'rotate-180' : ''}`} />
                 </button>
                 {openDropdown === 'carrera' && facultad && (
@@ -412,9 +412,9 @@ export default function MentoresPage() {
                   </div>
                 )}
               </div>
-              <div className="relative" onClick={e => e.stopPropagation()}>
+              <div className="relative w-full md:w-auto" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setOpenDropdown(openDropdown === 'rating' ? '' : 'rating')}
-                  className="bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition whitespace-nowrap">
+                  className="bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto">
                   {calificacion ? (ratingOptions.find(o => o.value === calificacion)?.label || calificacion) : 'Calificación'} <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${openDropdown === 'rating' ? 'rotate-180' : ''}`} />
                 </button>
                 {openDropdown === 'rating' && (
@@ -425,9 +425,9 @@ export default function MentoresPage() {
                   </div>
                 )}
               </div>
-              <div className="relative" onClick={e => e.stopPropagation()}>
+              <div className="relative w-full md:w-auto" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setOpenDropdown(openDropdown === 'sort' ? '' : 'sort')}
-                  className="bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition whitespace-nowrap">
+                  className="bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto">
                   {sortBy === 'populares' ? 'Más populares' : 'Mejor calificación'} <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${openDropdown === 'sort' ? 'rotate-180' : ''}`} />
                 </button>
                 {openDropdown === 'sort' && (

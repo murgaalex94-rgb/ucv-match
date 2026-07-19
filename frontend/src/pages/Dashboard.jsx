@@ -104,7 +104,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: 'easeOut' }}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="flex flex-col md:flex-row gap-4 mb-8">
               {[
                 { title: 'Mentorías Activas', value: mentoriasActivas.toString(), change: 'Consultado en tiempo real', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50' },
                 { title: 'Mentores Disponibles', value: mentoresDisponibles.toString(), change: 'En la plataforma', icon: Users, color: 'text-green-600', bg: 'bg-green-50' },
@@ -113,7 +113,7 @@ export default function Dashboard() {
                   key={idx}
                   animate={{ y: [0, -6, 0] }}
                   transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut', delay: idx * 0.2 }}
-                  className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                  className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 w-full md:w-1/3">
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-gray-500 text-xs font-medium mb-1">{card.title}</p>

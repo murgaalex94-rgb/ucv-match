@@ -16,7 +16,7 @@ import {
 } from 'stream-chat-react';
 import 'stream-chat-react/dist/css/index.css';
 import {
-  Search, ChevronDown, MoreHorizontal,
+  Search, ChevronDown, ChevronLeft, MoreHorizontal,
   Phone, Video, X, Info, Send,
   FileText, Image, Video as VideoIcon,
   Download, ExternalLink, File, Trash2, Ban, Mail, MessageSquare, Reply, Table, Monitor, Archive, Pin, Pencil, Clipboard, Smile, MoreVertical, User, BellOff,
@@ -289,6 +289,7 @@ const CustomSendButton = ({ sendMessage }) => (
 );
 
 const ChatHeader = ({
+  onBackClick,
   setShowCallModal,
   chatBlocked, setChatBlocked,
   setShowProfileModal,
@@ -318,6 +319,11 @@ const ChatHeader = ({
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
       <div className="flex items-center gap-3 min-w-0">
+        {onBackClick && (
+          <button onClick={onBackClick} className="md:hidden p-1 -ml-1 rounded-lg hover:bg-gray-100 transition-colors" title="Volver">
+            <ChevronLeft className="w-5 h-5 text-gray-500" />
+          </button>
+        )}
         <div className="w-9 h-9 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
           {initials}
         </div>
@@ -378,7 +384,7 @@ const ChatHeader = ({
   );
 };
 
-const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setShowCallModal, setShowProfileModal, setShowClearChatModal, setShowDeleteChatModal, mutedChats, setMutedChats, uploadError }) => {
+const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setShowCallModal, setShowProfileModal, setShowClearChatModal, setShowDeleteChatModal, mutedChats, setMutedChats, uploadError, onBackClick }) => {
   const { channel } = useChatContext();
 
   if (!channel) {
@@ -397,6 +403,7 @@ const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setS
       <WithComponents overrides={{ Attachment: CustomAttachment, EmojiPicker: CustomEmojiPicker, SendButton: CustomSendButton }}>
         <Window>
           <ChatHeader
+            onBackClick={onBackClick}
             setShowCallModal={setShowCallModal}
             chatBlocked={chatBlocked}
             setChatBlocked={setChatBlocked}
@@ -744,7 +751,7 @@ export default function MensajesPage() {
           <ActiveChannelSync setActiveChannel={setActiveChannel} />
           <div className="flex flex-1 overflow-hidden">
             {/* LEFT PANEL - CHANNEL LIST */}
-            <div className="w-full md:w-80 lg:w-96 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0">
+            <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0 ${activeChannel ? 'hidden md:block' : ''}`}>
               <ChannelList
                 filters={{ members: { $in: [user.id] } }}
                 options={{ limit: 5 }}
@@ -752,7 +759,7 @@ export default function MensajesPage() {
             </div>
 
             {/* RIGHT PANEL - CHAT OR EMPTY STATE */}
-            <div className="flex-1 flex flex-col bg-white">
+            <div className={`flex-1 flex flex-col bg-white ${!activeChannel ? 'hidden md:flex' : ''}`}>
               <RightPanelContent
                 CustomAttachment={CustomAttachment}
                 chatBlocked={chatBlocked}
@@ -764,6 +771,7 @@ export default function MensajesPage() {
                 mutedChats={mutedChats}
                 setMutedChats={setMutedChats}
                 uploadError={uploadError}
+                onBackClick={() => setActiveChannel(null)}
               />
             </div>
           </div>
