@@ -496,8 +496,25 @@ export default function MensajesPage() {
         const streamUserId = authUser.id;
         const displayName = user?.nombre || authUser.email || 'Usuario';
 
-        const { data: tokenData, error: tokenError } = await supabase.functions.invoke('generate-stream-token', { body: { userId: streamUserId } });
-        if (tokenError || !tokenData?.token) throw new Error(tokenError?.message || 'Error al obtener token de Stream Chat');
+        const session = await supabase.auth.getSession();
+        const accessToken = session.data.session?.access_token;
+        if (!accessToken) throw new Error('No hay sesión activa');
+
+        const response = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({ userId: streamUserId })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Error HTTP ${response.status}: ${errorText}`);
+        }
+
+        const tokenData = await response.json();
         const token = tokenData.token;
 
         await Promise.race([

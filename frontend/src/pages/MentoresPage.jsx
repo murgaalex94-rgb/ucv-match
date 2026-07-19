@@ -257,8 +257,23 @@ export default function MentoresPage() {
 
       // --- Crear canal de Stream Chat ---
       const chatClient = new StreamChat(API_KEY);
-      const { data: tokenData, error: tokenError } = await supabase.functions.invoke('generate-stream-token', { body: { userId: authUser.id } });
-      if (tokenError || !tokenData?.token) throw new Error(tokenError?.message || 'Error al obtener token de Stream Chat');
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token;
+      if (!accessToken) throw new Error('No hay sesión activa');
+
+      const response = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ userId: authUser.id })
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error HTTP ${response.status}: ${errorText}`);
+      }
+      const tokenData = await response.json();
       const token = tokenData.token;
       await chatClient.connectUser(
         { id: authUser.id, name: profile?.nombre_completo || authUser.email },
@@ -274,8 +289,23 @@ export default function MentoresPage() {
 
       if (!mentorExists) {
         // Conectar y desconectar como el mentor para que Stream Chat lo cree automáticamente
-        const { data: mentorTokenData, error: mentorTokenError } = await supabase.functions.invoke('generate-stream-token', { body: { userId: mentor.id } });
-        if (mentorTokenError || !mentorTokenData?.token) throw new Error(mentorTokenError?.message || 'Error al obtener token del mentor');
+        const session2 = await supabase.auth.getSession();
+        const accessToken2 = session2.data.session?.access_token;
+        if (!accessToken2) throw new Error('No hay sesión activa');
+
+        const mentorResp = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken2}`
+          },
+          body: JSON.stringify({ userId: mentor.id })
+        });
+        if (!mentorResp.ok) {
+          const errorText = await mentorResp.text();
+          throw new Error(`Error HTTP ${mentorResp.status}: ${errorText}`);
+        }
+        const mentorTokenData = await mentorResp.json();
         const mentorToken = mentorTokenData.token;
         const tempClient = new StreamChat(API_KEY);
         await tempClient.connectUser(
