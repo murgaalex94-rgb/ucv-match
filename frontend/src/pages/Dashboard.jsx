@@ -5,7 +5,7 @@ import {
   Search,
   TrendingUp,
   BookOpen, Users, Calendar, MessageSquare, School,
-  LayoutDashboard, Settings
+  LayoutDashboard, Settings, ClipboardList
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
@@ -14,8 +14,10 @@ import { supabase } from '../lib/supabase';
 export default function Dashboard() {
   const navigate = useNavigate();
   const [nombreUsuario, setNombreUsuario] = useState('');
+  const [userRol, setUserRol] = useState('');
   const [mentoriasActivas, setMentoriasActivas] = useState(0);
   const [mentoresDisponibles, setMentoresDisponibles] = useState(0);
+  const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
   const [proximasMentorias, setProximasMentorias] = useState([]);
   const [mentoresRecomendados, setMentoresRecomendados] = useState([]);
   const [notificacionesNoLeidas, setNotificacionesNoLeidas] = useState(0);
@@ -29,7 +31,7 @@ export default function Dashboard() {
         if (user) {
           let perfil = null;
           for (let i = 0; i < 5; i++) {
-            const { data, error } = await supabase.from('profiles').select('nombre_completo').eq('id', user.id).single();
+            const { data, error } = await supabase.from('profiles').select('nombre_completo, rol').eq('id', user.id).single();
             if (error && error.code !== 'PGRST116') {
               console.error('Error fetching profile:', error.message);
               break;
@@ -44,15 +46,24 @@ export default function Dashboard() {
 
           if (perfil) {
             setNombreUsuario(perfil.nombre_completo);
+            setUserRol(perfil.rol || '');
           } else if (user.user_metadata?.nombre_completo) {
             setNombreUsuario(user.user_metadata.nombre_completo);
+            setUserRol(user.user_metadata?.rol || '');
           }
 
-          const { count: activas } = await supabase.from('mentorias').select('*', { count: 'exact', head: true }).eq('estudiante_id', user.id).eq('estado', 'Activa');
-          setMentoriasActivas(activas || 0);
+          const rol = perfil?.rol || user.user_metadata?.rol || '';
 
-          const { count: mentores } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('rol', 'Mentor');
-          setMentoresDisponibles(mentores || 0);
+          if (rol === 'Mentor' || rol === 'SENIOR' || rol === 'DUAL') {
+            const { count: pendientes } = await supabase.from('mentorias').select('*', { count: 'exact', head: true }).eq('mentor_id', user.id).eq('estado', 'Pendiente');
+            setSolicitudesPendientes(pendientes || 0);
+          } else {
+            const { count: activas } = await supabase.from('mentorias').select('*', { count: 'exact', head: true }).eq('estudiante_id', user.id).eq('estado', 'Activa');
+            setMentoriasActivas(activas || 0);
+
+            const { count: mentores } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('rol', 'Mentor');
+            setMentoresDisponibles(mentores || 0);
+          }
 
           const { data: mentoriasData } = await supabase.from('mentorias').select('*, mentor:profiles!mentor_id(nombre_completo)').eq('estudiante_id', user.id).in('estado', ['Pendiente', 'Activa']).limit(2);
           if (mentoriasData) setProximasMentorias(mentoriasData);
@@ -79,6 +90,23 @@ export default function Dashboard() {
   const userName = nombreUsuario?.split(' ')[0] || 'Usuario';
   const now = new Date();
   const saludo = now.getHours() < 12 ? 'Buenos días' : now.getHours() < 18 ? 'Buenas tardes' : 'Buenas noches';
+  const esMentor = userRol === 'Mentor' || userRol === 'SENIOR' || userRol === 'DUAL';
+
+  const quickAccessItems = esMentor
+    ? [
+        { icon: LayoutDashboard, label: 'Dashboard', route: '/dashboard', color: 'text-blue-600' },
+        { icon: ClipboardList, label: 'Gestionar Solicitudes', route: '/mentorias', color: 'text-orange-500' },
+        { icon: Calendar, label: 'Mis Mentorías', route: '/mentorias', color: 'text-green-600' },
+        { icon: MessageSquare, label: 'Mensajes', badge: 1, route: '/mensajes', color: 'text-purple-600' },
+        { icon: Settings, label: 'Configuración', route: '/configuracion', color: 'text-gray-600' },
+      ]
+    : [
+        { icon: LayoutDashboard, label: 'Dashboard', route: '/dashboard', color: 'text-blue-600' },
+        { icon: Users, label: 'Solicitar mentor', route: '/mentores', color: 'text-green-600' },
+        { icon: Calendar, label: 'Mis Mentorías', route: '/mentorias', color: 'text-orange-500' },
+        { icon: MessageSquare, label: 'Mensajes', badge: 1, route: '/mensajes', color: 'text-purple-600' },
+        { icon: Settings, label: 'Configuración', route: '/configuracion', color: 'text-gray-600' },
+      ];
 
   return (
     <div className="flex min-h-screen bg-[#f5f7fa] font-sans">
@@ -105,31 +133,54 @@ export default function Dashboard() {
         ) : (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: 'easeOut' }}>
             <div className="flex flex-col md:flex-row gap-4 mb-8">
-              {[
-                { title: 'Mentorías Activas', value: mentoriasActivas.toString(), change: 'Consultado en tiempo real', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50' },
-                { title: 'Mentores Disponibles', value: mentoresDisponibles.toString(), change: 'En la plataforma', icon: Users, color: 'text-green-600', bg: 'bg-green-50' },
-              ].map((card, idx) => (
+              {esMentor ? (
                 <motion.div
-                  key={idx}
                   animate={{ y: [0, -6, 0] }}
-                  transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut', delay: idx * 0.2 }}
-                  className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 w-full md:w-1/3">
+                  transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut', delay: 0 }}
+                  className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 w-full md:w-1/3"
+                >
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="text-gray-500 text-xs font-medium mb-1">{card.title}</p>
-                      <p className="text-2xl font-bold text-gray-800">{card.value}</p>
-                      {card.change && (
-                        <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3" /> {card.change}
-                        </p>
-                      )}
+                      <p className="text-gray-500 text-xs font-medium mb-1">Solicitudes Pendientes</p>
+                      <p className="text-2xl font-bold text-gray-800">{solicitudesPendientes}</p>
+                      <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" /> Por revisar
+                      </p>
                     </div>
-                    <div className={`p-3 rounded-xl ${card.bg}`}>
-                      <card.icon className={`w-6 h-6 ${card.color}`} />
+                    <div className="p-3 rounded-xl bg-orange-50">
+                      <ClipboardList className="w-6 h-6 text-orange-600" />
                     </div>
                   </div>
                 </motion.div>
-              ))}
+              ) : (
+                <>
+                  {[
+                    { title: 'Mentorías Activas', value: mentoriasActivas.toString(), change: 'Consultado en tiempo real', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { title: 'Mentores Disponibles', value: mentoresDisponibles.toString(), change: 'En la plataforma', icon: Users, color: 'text-green-600', bg: 'bg-green-50' },
+                  ].map((card, idx) => (
+                    <motion.div
+                      key={idx}
+                      animate={{ y: [0, -6, 0] }}
+                      transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut', delay: idx * 0.2 }}
+                      className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 w-full md:w-1/3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-gray-500 text-xs font-medium mb-1">{card.title}</p>
+                          <p className="text-2xl font-bold text-gray-800">{card.value}</p>
+                          {card.change && (
+                            <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                              <TrendingUp className="w-3 h-3" /> {card.change}
+                            </p>
+                          )}
+                        </div>
+                        <div className={`p-3 rounded-xl ${card.bg}`}>
+                          <card.icon className={`w-6 h-6 ${card.color}`} />
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </>
+              )}
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8">
@@ -140,13 +191,7 @@ export default function Dashboard() {
                 transition={{ duration: 0.6, ease: 'easeOut' }}
                 className="grid grid-cols-2 md:grid-cols-5 gap-3"
               >
-                {[
-                  { icon: LayoutDashboard, label: 'Dashboard', route: '/dashboard', color: 'text-blue-600' },
-                  { icon: Users, label: 'Mentores', route: '/mentores', color: 'text-green-600' },
-                  { icon: Calendar, label: 'Mentorías', route: '/mentorias', color: 'text-orange-500' },
-                  { icon: MessageSquare, label: 'Mensajes', badge: 1, route: '/mensajes', color: 'text-purple-600' },
-                  { icon: Settings, label: 'Configuración', route: '/configuracion', color: 'text-gray-600' },
-                ].map((item, idx) => (
+                {quickAccessItems.map((item, idx) => (
                   <motion.div
                     key={idx}
                     animate={{ y: [0, -3, 0] }}
