@@ -1,6 +1,5 @@
 import { createContext, useState, useEffect, useContext } from 'react'
 import { supabase } from '../lib/supabase'
-import { devLog, devError, logAuthEvent } from '../services/securityLogging'
 
 const AuthContext = createContext(null)
 
@@ -18,7 +17,7 @@ export const AuthProvider = ({ children }) => {
         .single()
 
       if (profileError) {
-        devWarn('Error fetching profile (table may not exist or RLS issue):', profileError.message)
+        console.warn('Error fetching profile (table may not exist or RLS issue):', profileError.message)
         setUser({
           id: sessionUser.id,
           email: sessionUser.email,
@@ -47,7 +46,7 @@ export const AuthProvider = ({ children }) => {
         avatar_url: profile?.avatar_url
       })
     } catch (error) {
-      devError('Error loading profile:', error)
+      console.error('Error loading profile:', error)
       // Si falla el perfil, igual guardar datos básicos de la sesión
       setUser({
         id: sessionUser.id,
@@ -71,7 +70,7 @@ export const AuthProvider = ({ children }) => {
           profileLoaded = true
         }
       } catch (error) {
-        devError('Error checking initial session:', error)
+        console.error('Error checking initial session:', error)
       } finally {
         setLoading(false)
       }
@@ -82,7 +81,7 @@ export const AuthProvider = ({ children }) => {
     // 2. Escuchar cambios de autenticación en tiempo real
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        devLog('Auth event:', event)
+        console.log('Auth event:', event)
 
         if (event === 'SIGNED_IN' && session?.user) {
           // Evitar cargar el perfil dos veces si initAuth ya lo hizo

@@ -2,7 +2,6 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useState, useEffect } from 'react'
-import { devError } from '../services/securityLogging'
 
 const ProtectedRoute = ({ allowedRoles, children }) => {
   const { user, loading } = useAuth()
@@ -25,7 +24,7 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
           setSessionValid(true)
         }
       } catch (error) {
-        devError('Error validando sesión:', error)
+        console.error('Error validando sesión:', error)
         setSessionValid(false)
       } finally {
         setValidatingSession(false)
