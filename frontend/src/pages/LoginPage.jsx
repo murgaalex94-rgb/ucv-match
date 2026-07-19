@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { User, Lock, Eye, EyeOff, ArrowRight, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import HelpButton from '../components/HelpButton'
 import { supabase } from '../lib/supabase'
+import Turnstile from 'react-turnstile'
 
 
 const LoginPage = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -22,9 +24,22 @@ const LoginPage = () => {
   const [resetError, setResetError] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [toast, setToast] = useState('')
+  const [captchaToken, setCaptchaToken] = useState(null)
+  
+  // Rate limiting: failed attempts tracking
+  const [failedAttempts, setFailedAttempts] = useState(() => parseInt(localStorage.getItem('login_failed_attempts') || '0', 10))
+  const [lockoutUntil, setLockoutUntil] = useState(() => parseInt(localStorage.getItem('login_lockout_until') || '0', 10))
+  const [countdown, setCountdown] = useState(0)
 
   useEffect(() => {
-    if (user) {
+    if (location.state?.message) {
+      setToast(location.state.message)
+      window.history.replaceState({}, document.title)
+    }
+  }, [location.state])
+
+  useEffect(() => {
+    if (user?.email_confirmed_at) {
       navigate('/dashboard', { replace: true })
     }
   }, [user, navigate])
@@ -35,6 +50,26 @@ const LoginPage = () => {
       return () => clearTimeout(t)
     }
   }, [toast])
+
+  // Countdown for lockout
+  useEffect(() => {
+    if (lockoutUntil > Date.now()) {
+      const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000)
+      setCountdown(remaining)
+      const timer = setInterval(() => {
+        const rem = Math.ceil((lockoutUntil - Date.now()) / 1000)
+        if (rem <= 0) {
+          setCountdown(0)
+          clearInterval(timer)
+        } else {
+          setCountdown(rem)
+        }
+      }, 1000)
+      return () => clearInterval(timer)
+    } else {
+      setCountdown(0)
+    }
+  }, [lockoutUntil])
 
   const handleResetPassword = async () => {
     if (!resetEmail.trim()) {
@@ -77,8 +112,20 @@ const LoginPage = () => {
   const handleLogin = async (e) => {
     e.preventDefault()
 
+    // Check lockout
+    if (lockoutUntil > Date.now()) {
+      const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000)
+      setError(`Demasiados intentos fallidos. Intenta de nuevo en ${remaining}s.`)
+      return
+    }
+
     if (!email || !password) {
       setError('Por favor, ingresa tu usuario y contraseña.')
+      return
+    }
+
+    if (!captchaToken) {
+      setError('Por favor, completa el CAPTCHA.')
       return
     }
 
@@ -86,15 +133,37 @@ const LoginPage = () => {
     setIsLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password,
+        options: {
+          captchaToken
+        }
+      })
 
       if (error) {
         console.error('Login error:', error)
-        setError(error.message || 'Error al iniciar sesión')
+        // Increment failed attempts
+        const newAttempts = failedAttempts + 1
+        setFailedAttempts(newAttempts)
+        localStorage.setItem('login_failed_attempts', newAttempts.toString())
+        
+        if (newAttempts >= 5) {
+          const until = Date.now() + 30 * 1000 // 30 seconds
+          setLockoutUntil(until)
+          localStorage.setItem('login_lockout_until', until.toString())
+          setError(`Demasiados intentos fallidos. Bloqueado por 30 segundos.`)
+        } else {
+          setError(error.message || 'Error al iniciar sesión')
+        }
         return
       }
 
-      console.log('Login result:', data)
+      // Success: reset failed attempts
+      setFailedAttempts(0)
+      localStorage.removeItem('login_failed_attempts')
+      localStorage.removeItem('login_lockout_until')
+      
       navigate('/dashboard')
     } catch (err) {
       console.error('Unexpected error:', err)
@@ -137,7 +206,16 @@ const LoginPage = () => {
 
           {/* Form */}
           <form onSubmit={handleLogin} className="space-y-4">
-            {error && (
+            {countdown > 0 && (
+              <div className="bg-orange-50 border border-orange-200 text-orange-700 px-4 py-3 rounded-lg text-sm text-center animate-pulse">
+                <svg className="w-5 h-5 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6a1 1 0 00-2 0v4z" clipRule="evenodd" />
+                </svg>
+                Cuenta bloqueada temporalmente. Intenta de nuevo en {countdown}s.
+              </div>
+            )}
+
+            {error && !countdown && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
             )}
 
@@ -186,6 +264,16 @@ const LoginPage = () => {
                 Recordarme
               </label>
               <button type="button" onClick={() => { setShowResetModal(true); setResetEmail(email); setResetError('') }} className="text-sm text-[#0f2a5c] hover:underline font-medium bg-transparent border-none p-0 cursor-pointer">¿Olvidaste tu contraseña?</button>
+            </div>
+
+            {/* CAPTCHA */}
+            <div className="flex justify-center">
+              <Turnstile
+                sitekey="0x4AAAAAAD5N1bIeyOloQRm-EfbvEqPnGjM"
+                onVerify={(token) => setCaptchaToken(token)}
+                onError={() => setCaptchaToken(null)}
+                onExpire={() => setCaptchaToken(null)}
+              />
             </div>
 
             {/* Submit Button */}

@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useContext } from 'react'
 import { supabase } from '../lib/supabase'
+import { devLog, devError, logAuthEvent } from '../services/securityLogging'
 
 const AuthContext = createContext(null)
 
@@ -17,11 +18,11 @@ export const AuthProvider = ({ children }) => {
         .single()
 
       if (profileError) {
-        console.warn('Error fetching profile (table may not exist or RLS issue):', profileError.message)
-        // Usar datos de la sesión como fallback
+        devWarn('Error fetching profile (table may not exist or RLS issue):', profileError.message)
         setUser({
           id: sessionUser.id,
           email: sessionUser.email,
+          email_confirmed_at: sessionUser.email_confirmed_at,
           nombre: sessionUser.user_metadata?.nombre_completo || '',
           rol: sessionUser.user_metadata?.rol || 'JUNIOR',
           carrera: sessionUser.user_metadata?.carrera || '',
@@ -36,6 +37,7 @@ export const AuthProvider = ({ children }) => {
       setUser({
         id: sessionUser.id,
         email: sessionUser.email,
+        email_confirmed_at: sessionUser.email_confirmed_at,
         nombre: profile?.nombre_completo,
         rol: profile?.rol,
         carrera: profile?.carrera,
@@ -45,11 +47,12 @@ export const AuthProvider = ({ children }) => {
         avatar_url: profile?.avatar_url
       })
     } catch (error) {
-      console.error('Error loading profile:', error)
+      devError('Error loading profile:', error)
       // Si falla el perfil, igual guardar datos básicos de la sesión
       setUser({
         id: sessionUser.id,
         email: sessionUser.email,
+        email_confirmed_at: sessionUser.email_confirmed_at,
         nombre: sessionUser.user_metadata?.nombre_completo || '',
         rol: sessionUser.user_metadata?.rol || 'JUNIOR',
       })
@@ -68,7 +71,7 @@ export const AuthProvider = ({ children }) => {
           profileLoaded = true
         }
       } catch (error) {
-        console.error('Error checking initial session:', error)
+        devError('Error checking initial session:', error)
       } finally {
         setLoading(false)
       }
@@ -79,7 +82,7 @@ export const AuthProvider = ({ children }) => {
     // 2. Escuchar cambios de autenticación en tiempo real
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth event:', event)
+        devLog('Auth event:', event)
 
         if (event === 'SIGNED_IN' && session?.user) {
           // Evitar cargar el perfil dos veces si initAuth ya lo hizo
@@ -93,6 +96,8 @@ export const AuthProvider = ({ children }) => {
           profileLoaded = false
           setLoading(false)
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          await loadProfile(session.user)
+        } else if (event === 'USER_UPDATED' && session?.user) {
           await loadProfile(session.user)
         }
       }
@@ -116,6 +121,19 @@ export const AuthProvider = ({ children }) => {
       // onAuthStateChange se encargará de actualizar el user
       return { success: true }
     } catch (error) {
+      // Manejo específico de errores de autenticación
+      if (error.message?.includes('Invalid login credentials')) {
+        return {
+          success: false,
+          error: 'Credenciales inválidas. Por favor, verifica tu email y contraseña.'
+        }
+      }
+      if (error.message?.includes('Email not confirmed')) {
+        return {
+          success: false,
+          error: 'Debes confirmar tu correo electrónico antes de iniciar sesión.'
+        }
+      }
       return {
         success: false,
         error: error.message || 'Error al iniciar sesión'

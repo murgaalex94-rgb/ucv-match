@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { User, CreditCard, Mail, Lock, Eye, EyeOff, ArrowRight, BookOpen, Calendar, BarChart3, Lightbulb, ChevronDown, Search, X } from 'lucide-react'
 import HelpButton from '../components/HelpButton'
 import { supabase } from '../lib/supabase'
+import Turnstile from 'react-turnstile'
 
 const RegisterPage = () => {
   const [form, setForm] = useState({
@@ -29,6 +30,7 @@ const RegisterPage = () => {
   const [promedioError, setPromedioError] = useState('')
   const [carreraOpen, setCarreraOpen] = useState(false)
   const carreraRef = useRef(null)
+  const [captchaToken, setCaptchaToken] = useState(null)
 
   const navigate = useNavigate()
 
@@ -76,6 +78,7 @@ const RegisterPage = () => {
     if (!form.nombre.trim()) errors.nombre = 'El nombre es obligatorio'
     if (!form.codigoEstudiante.trim()) errors.codigoEstudiante = 'El código de estudiante es obligatorio'
     if (!form.email.trim()) errors.email = 'El correo es obligatorio'
+    if (!form.email.trim().endsWith('@ucvvirtual.edu.pe')) errors.email = 'Solo se permiten correos institucionales @ucvvirtual.edu.pe'
     if (!form.password) errors.password = 'La contraseña es obligatoria'
     if (form.password !== form.confirmPassword) errors.confirmPassword = 'Las contraseñas no coinciden'
     if (!form.rol) errors.rol = 'Selecciona un rol'
@@ -83,6 +86,7 @@ const RegisterPage = () => {
     if (!form.ciclo) errors.ciclo = 'Selecciona un ciclo'
     if (!form.promedio) errors.promedio = 'El promedio es obligatorio'
     if (cursosSeleccionados.length === 0) errors.curso = 'Selecciona al menos un curso'
+    if (!captchaToken) errors.captcha = 'Por favor, completa el CAPTCHA'
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
@@ -97,6 +101,7 @@ const RegisterPage = () => {
         password: form.password,
         options: {
           emailConfirm: true,
+          captchaToken,
           data: {
             nombre_completo: form.nombre,
             codigo_estudiante: form.codigoEstudiante,
@@ -111,23 +116,8 @@ const RegisterPage = () => {
 
       if (error) throw error
 
-      if (data?.user) {
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: data.user.id,
-          nombre_completo: form.nombre,
-          codigo_estudiante: form.codigoEstudiante,
-          email: form.email,
-          rol: form.rol.charAt(0).toUpperCase() + form.rol.slice(1),
-          carrera: form.carrera,
-          ciclo: parseInt(form.ciclo),
-          promedio: parseFloat(form.promedio),
-          cursos: cursosSeleccionados
-        })
-
-        if (profileError) console.error('Error al crear perfil:', profileError)
-      }
-
-      navigate('/dashboard')
+      await supabase.auth.signOut()
+      navigate('/login', { state: { message: 'Revisa tu correo electrónico para confirmar tu cuenta.' } })
     } catch (error) {
       console.error('Error completo:', error)
       const errorMessage = error?.message || error?.error_description || JSON.stringify(error) || 'Error al registrar usuario'
@@ -669,6 +659,17 @@ const RegisterPage = () => {
               </div>
               {fieldErrors.curso && <p className="text-red-500 text-xs mt-1">{fieldErrors.curso}</p>}
             </div>
+
+            {/* CAPTCHA */}
+            <div className="flex justify-center">
+              <Turnstile
+                sitekey="0x4AAAAAAD5N1bIeyOloQRm-EfbvEqPnGjM"
+                onVerify={(token) => setCaptchaToken(token)}
+                onError={() => setCaptchaToken(null)}
+                onExpire={() => setCaptchaToken(null)}
+              />
+            </div>
+            {fieldErrors.captcha && <p className="text-red-500 text-xs mt-1 text-center">{fieldErrors.captcha}</p>}
 
             {/* Submit Button */}
             <button

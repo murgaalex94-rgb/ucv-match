@@ -1,11 +1,41 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
+import { useState, useEffect } from 'react'
+import { devError } from '../services/securityLogging'
 
 const ProtectedRoute = ({ allowedRoles, children }) => {
   const { user, loading } = useAuth()
+  const [sessionValid, setSessionValid] = useState(null)
+  const [validatingSession, setValidatingSession] = useState(true)
 
-  // Mientras se verifica la sesión, mostrar loading
-  if (loading) {
+  useEffect(() => {
+    const validateSession = async () => {
+      if (!user) {
+        setSessionValid(false)
+        setValidatingSession(false)
+        return
+      }
+
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error || !session) {
+          setSessionValid(false)
+        } else {
+          setSessionValid(true)
+        }
+      } catch (error) {
+        devError('Error validando sesión:', error)
+        setSessionValid(false)
+      } finally {
+        setValidatingSession(false)
+      }
+    }
+
+    validateSession()
+  }, [user])
+
+  if (loading || validatingSession) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-3">
@@ -16,12 +46,14 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
     )
   }
 
-  // Si no hay usuario, redirigir al login
-  if (!user) {
-    return <Navigate to="/login" replace />
+  if (!user || sessionValid === false) {
+    return <Navigate to="/login" state={{ message: 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.' }} replace />
   }
 
-  // Si el usuario tiene validación pendiente
+  if (!user.email_confirmed_at) {
+    return <Navigate to="/login" state={{ message: 'Debes confirmar tu correo electrónico antes de acceder. Revisa tu bandeja de entrada.' }} replace />
+  }
+
   if (user.pendingValidation) {
     return <Navigate to="/pending-validation" replace />
   }

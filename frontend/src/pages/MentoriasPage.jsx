@@ -35,6 +35,15 @@ function MentoriasPage() {
   const [proximasMentorias, setProximasMentorias] = useState([]);
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [toastMsg, setToastMsg] = useState(null);
+
+  useEffect(() => {
+    if (toastMsg) {
+      const t = setTimeout(() => setToastMsg(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [toastMsg]);
 
   useEffect(() => {
     loadMentorias();
@@ -140,22 +149,22 @@ function MentoriasPage() {
 
   const handleCrearMentoria = async () => {
     if (!formData.materia || !fechaSeleccionada || !horaSeleccionada) {
-      alert('Completa todos los campos');
+      setToastMsg({ text: 'Completa todos los campos', type: 'error' });
       return;
     }
 
     if (isNaN(fechaSeleccionada.getTime()) || isNaN(horaSeleccionada.getTime())) {
-      alert('La fecha o la hora no son válidas');
+      setToastMsg({ text: 'La fecha o la hora no son válidas', type: 'error' });
       return;
     }
 
     if (!user || !user.id) {
-      alert('Debes iniciar sesión');
+      setToastMsg({ text: 'Debes iniciar sesión', type: 'error' });
       return;
     }
 
     if (!mentorSeleccionado) {
-      alert('Debes seleccionar un mentor');
+      setToastMsg({ text: 'Debes seleccionar un mentor', type: 'error' });
       return;
     }
 
@@ -181,7 +190,7 @@ function MentoriasPage() {
 
         if (insertError) {
           console.error('Error creating profile:', insertError);
-          alert('Error al crear tu perfil automáticamente. Por favor, ejecuta este SQL en tu Supabase SQL Editor:\n\nINSERT INTO profiles (id, nombre_completo, email, rol) VALUES (\'' + user.id + '\', \'' + (user.nombre || 'Usuario') + '\', \'' + (user.email || '') + '\', \'' + (user.rol || 'JUNIOR') + '\');');
+          setToastMsg({ text: 'Error al crear tu perfil. Contacta al administrador.', type: 'error' });
           return;
         }
       }
@@ -221,42 +230,56 @@ function MentoriasPage() {
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error detallado de Supabase:', error);
-      alert('Error: ' + (error.message || error.details || error.hint || 'Error desconocido'));
+      setToastMsg({ text: 'Error: ' + (error.message || error.details || error.hint || 'Error desconocido'), type: 'error' });
     }
   };
 
-  const handleCancelRequest = async (id) => {
-    if (!window.confirm('¿Seguro que quieres cancelar esta solicitud?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('mentorias')
-        .update({ estado: 'Cancelada' })
-        .eq('id', id);
-
-      if (error) throw error;
-      await loadMentorias();
-    } catch (error) {
-      console.error('Error canceling mentorship:', error);
-      alert('Error al cancelar mentoría');
-    }
+  const handleCancelRequest = (id) => {
+    setConfirmModal({
+      title: 'Cancelar solicitud',
+      message: '¿Seguro que quieres cancelar esta solicitud?',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const { error } = await supabase
+            .from('mentorias')
+            .update({ estado: 'Cancelada' })
+            .eq('id', id);
+          if (error) throw error;
+          await loadMentorias();
+          setToastMsg({ text: 'Solicitud cancelada', type: 'success' });
+        } catch (error) {
+          console.error('Error canceling mentorship:', error);
+          setToastMsg({ text: 'Error al cancelar mentoría', type: 'error' });
+        }
+      },
+      onCancel: () => setConfirmModal(null)
+    });
   };
 
-  const handleCancelUpcoming = async (id) => {
-    if (!window.confirm('¿Seguro que quieres cancelar esta mentoría?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('mentorias')
-        .update({ estado: 'Cancelada' })
-        .eq('id', id);
-
-      if (error) throw error;
-      await loadMentorias();
-    } catch (error) {
-      console.error('Error canceling mentorship:', error);
-      alert('Error al cancelar mentoría');
-    }
+  const handleCancelUpcoming = (id) => {
+    setConfirmModal({
+      title: 'Cancelar mentoría',
+      message: '¿Seguro que quieres cancelar esta mentoría?',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const { error } = await supabase
+            .from('mentorias')
+            .update({ estado: 'Cancelada' })
+            .eq('id', id);
+          if (error) throw error;
+          await loadMentorias();
+          setToastMsg({ text: 'Mentoría cancelada', type: 'success' });
+        } catch (error) {
+          console.error('Error canceling mentorship:', error);
+          setToastMsg({ text: 'Error al cancelar mentoría', type: 'error' });
+        }
+      },
+      onCancel: () => setConfirmModal(null)
+    });
   };
 
   const handleCompleteSession = async (session) => {
@@ -268,9 +291,10 @@ function MentoriasPage() {
 
       if (error) throw error;
       await loadMentorias();
+      setToastMsg({ text: 'Mentoría completada', type: 'success' });
     } catch (error) {
       console.error('Error completing mentorship:', error);
-      alert('Error al completar mentoría');
+      setToastMsg({ text: 'Error al completar mentoría', type: 'error' });
     }
   };
 
@@ -685,6 +709,35 @@ function MentoriasPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => { setConfirmModal(null); }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 z-50" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">{confirmModal.title}</h3>
+            <p className="text-sm text-gray-600 mb-6">{confirmModal.message}</p>
+            <div className="flex gap-3">
+              <button onClick={confirmModal.onCancel || (() => setConfirmModal(null))}
+                className="flex-1 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                Cancelar
+              </button>
+              <button onClick={confirmModal.onConfirm}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium text-white transition ${
+                  confirmModal.variant === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
+                }`}>
+                {confirmModal.variant === 'danger' ? 'Eliminar' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toastMsg && (
+        <div className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
+          toastMsg.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        }`}>
+          {toastMsg.text}
         </div>
       )}
     </div>

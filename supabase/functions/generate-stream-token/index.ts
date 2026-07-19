@@ -30,6 +30,22 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid or expired token' }), { status: 401 });
     }
 
+    // Verify user role
+    const { data: profile, error: profileError } = await supabaseClient
+      .from('profiles')
+      .select('rol')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return new Response(JSON.stringify({ error: 'User profile not found' }), { status: 404 });
+    }
+
+    const allowedRoles = ['ADMIN', 'SENIOR', 'JUNIOR', 'DUAL', 'MENTOR'];
+    if (!allowedRoles.includes(profile.rol)) {
+      return new Response(JSON.stringify({ error: 'Unauthorized role' }), { status: 403 });
+    }
+
     const { userId } = await req.json();
 
     if (user.id !== userId) {
