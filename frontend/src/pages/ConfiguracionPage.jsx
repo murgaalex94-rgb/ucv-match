@@ -33,6 +33,7 @@ export default function ConfiguracionPage() {
   const [message, setMessage] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showGlobalLogoutModal, setShowGlobalLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -156,10 +157,25 @@ export default function ConfiguracionPage() {
     }
   };
 
+  const handleGlobalLogout = async () => {
+    try {
+      // Sign out from all devices
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      if (error) throw error;
+      navigate('/login');
+    } catch (error) {
+      console.error('Error global logout:', error);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     try {
-      const { error } = await supabase.auth.deleteUser();
+      // Soft delete instead of hard delete
+      const { error } = await supabase.rpc('soft_delete_account', { user_id: user.id });
       if (error) throw error;
+      
+      // Sign out after soft delete
+      await supabase.auth.signOut();
       navigate('/login');
     } catch (error) {
       console.error('Error deleting account:', error);
@@ -436,13 +452,22 @@ export default function ConfiguracionPage() {
                 Cerrar Sesión
               </h3>
               <p className="text-sm text-gray-600 mb-4">Al cerrar sesión, tendrás que volver a iniciar sesión para acceder a tu cuenta.</p>
-              <button 
-                onClick={() => setShowLogoutModal(true)}
-                className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-red-700 transition flex items-center gap-2"
-              >
-                <LogOut className="w-4 h-4" />
-                Cerrar Sesión
-              </button>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => setShowLogoutModal(true)}
+                  className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-red-700 transition flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Cerrar Sesión (solo este dispositivo)
+                </button>
+                <button 
+                  onClick={() => setShowGlobalLogoutModal(true)}
+                  className="bg-orange-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-orange-700 transition flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Cerrar Sesión en TODOS los dispositivos
+                </button>
+              </div>
             </section>
 
             <section className="bg-white rounded-2xl shadow-sm border border-red-200 p-6">
@@ -460,8 +485,29 @@ export default function ConfiguracionPage() {
               </div>
             </section>
 
+            {/* Global Logout confirmation modal */}
+            {showGlobalLogoutModal && (
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => setShowGlobalLogoutModal(false)}>
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <LogOut className="w-6 h-6 text-orange-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-800 mb-2 text-center">Cerrar sesión en TODOS los dispositivos</h3>
+                  <p className="text-sm text-gray-600 mb-6 text-center">Esto cerrará tu sesión en todos los dispositivos donde hayas iniciado sesión. Tendrás que volver a iniciar sesión en cada uno.</p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowGlobalLogoutModal(false)} className="flex-1 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                      Cancelar
+                    </button>
+                    <button onClick={handleGlobalLogout} className="flex-1 bg-orange-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-orange-700 transition">
+                      Sí, cerrar en todos
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Logout confirmation modal */}
-            {showLogoutModal && (
               <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => setShowLogoutModal(false)}>
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
                 <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>

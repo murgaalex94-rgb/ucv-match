@@ -25,6 +25,8 @@ const LoginPage = () => {
   const [isSending, setIsSending] = useState(false)
   const [toast, setToast] = useState('')
   const [captchaToken, setCaptchaToken] = useState(null)
+  const [geoChecked, setGeoChecked] = useState(false)
+  const [geoAllowed, setGeoAllowed] = useState(true)
   
   // Rate limiting: failed attempts tracking
   const [failedAttempts, setFailedAttempts] = useState(() => parseInt(localStorage.getItem('login_failed_attempts') || '0', 10))
@@ -50,6 +52,24 @@ const LoginPage = () => {
       return () => clearTimeout(t)
     }
   }, [toast])
+
+  // Geo-blocking check: only allow Peru IPs
+  useEffect(() => {
+    const checkGeo = async () => {
+      try {
+        const res = await fetch('https://ip-api.com/json/?fields=countryCode')
+        const data = await res.json()
+        if (data.countryCode !== 'PE') {
+          setGeoAllowed(false)
+        }
+      } catch (e) {
+        console.warn('Geo check failed, allowing by default:', e)
+      } finally {
+        setGeoChecked(true)
+      }
+    }
+    checkGeo()
+  }, [])
 
   // Countdown for lockout
   useEffect(() => {
@@ -112,6 +132,16 @@ const LoginPage = () => {
   const handleLogin = async (e) => {
     e.preventDefault()
 
+    // Geo-blocking check
+    if (!geoChecked) {
+      setError('Verificando ubicación...')
+      return
+    }
+    if (!geoAllowed) {
+      setError('El acceso está restringido a usuarios en Perú.')
+      return
+    }
+
     // Check lockout
     if (lockoutUntil > Date.now()) {
       const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000)
@@ -133,6 +163,20 @@ const LoginPage = () => {
     setIsLoading(true)
 
     try {
+      // Email hash verification: check if email exists and hash matches
+      const { data: hashData, error: hashError } = await supabase
+        .rpc('verify_email_hash', { p_email: email })
+      
+      if (hashError) {
+        console.warn('Email hash verification failed:', hashError)
+      } else if (hashData && hashData.length > 0 && !hashData[0].email_hash_match) {
+        // Email exists but hash doesn't match - possible tampering
+        console.error('Email hash mismatch for:', email)
+        setError('Credenciales inválidas')
+        setIsLoading(false)
+        return
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({ 
         email, 
         password,
@@ -230,6 +274,25 @@ const LoginPage = () => {
                 className="w-full pl-11 pr-12 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
                 required
               />
+              {/* Geo indicator */}
+              {!geoChecked && (
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  Verificando...
+                </div>
+              )}
+              {!geoAllowed && geoChecked && (
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-red-500 text-xs flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-6a1 1 0 11-2 0 1 1 0 012 0zm0 2a1 1 0 11-2 0 1 1 0 012 0zm0 8a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd" /></svg>
+                  Acceso solo desde Perú
+                </div>
+              )}
+              {geoAllowed && geoChecked && (
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-green-500 text-xs flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a1 1 0 00-1.664-.828l-3 4a1 1 0 000 1.642l1.5 2a1 1 0 001.414 0l3-4z" clipRule="evenodd" /></svg>
+                  IP verificada (Perú)
+                </div>
+              )}
             </div>
 
             {/* Password */}
