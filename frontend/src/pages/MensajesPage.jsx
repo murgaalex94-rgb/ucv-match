@@ -523,6 +523,8 @@ export default function MensajesPage() {
 
         // Fetch new token if no valid cached token
         if (!token) {
+          console.log('[Stream] Fetching new token from Edge Function...');
+          const fetchStart = Date.now();
           const session = await supabase.auth.getSession();
           const accessToken = session.data.session?.access_token;
           if (!accessToken) throw new Error('No hay sesión activa');
@@ -536,6 +538,8 @@ export default function MensajesPage() {
             body: JSON.stringify({ userId: streamUserId })
           });
 
+          console.log('[Stream] Edge Function response:', response.status, `(${Date.now() - fetchStart}ms)`);
+
           if (!response.ok) {
             const errorText = await response.text();
             throw new Error(`Error HTTP ${response.status}: ${errorText}`);
@@ -543,6 +547,7 @@ export default function MensajesPage() {
 
           const tokenData = await response.json();
           token = tokenData.token;
+          console.log('[Stream] Token received, length:', token?.length);
 
           // Cache token with expiration (decode JWT to get exp)
           try {
@@ -561,9 +566,11 @@ export default function MensajesPage() {
             token
           ),
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Connection timeout')), 15000)
+            setTimeout(() => reject(new Error('Connection timeout (30s)')), 30000)
           )
         ]);
+
+        console.log('[Stream] connectUser successful');
 
         if (state.cancelled) return;
 
@@ -589,10 +596,10 @@ export default function MensajesPage() {
 
       state.timeoutId = setTimeout(() => {
         if (!state.cancelled) {
-          setErrorMsg('Tiempo de espera agotado (20s)');
+          setErrorMsg('Tiempo de espera agotado (40s)');
           setLoading(false);
         }
-      }, 20000);
+      }, 40000);
     };
 
     initChat();
