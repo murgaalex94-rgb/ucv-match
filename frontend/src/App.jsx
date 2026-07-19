@@ -40,8 +40,10 @@ function App() {
   return (
     <AnimatePresence mode="wait">
     <Routes location={location} key={location.pathname}>
-      {/* Landing page pública */}
-      <Route path="/" element={<LandingPage />} />
+      {/* Landing page pública (redirige a dashboard si ya hay sesión) */}
+      <Route path="/" element={
+        !user ? <LandingPage /> : <Navigate to="/dashboard" />
+      } />
 
       {/* Rutas públicas */}
       <Route path="/login" element={<LoginPage />} />
