@@ -1,17 +1,27 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { StreamChat } from 'npm:stream-chat@8.64.0'
+import { StreamChat } from 'npm:stream-chat'
 
 const API_KEY = Deno.env.get('STREAM_API_KEY')!
 const API_SECRET = Deno.env.get('STREAM_API_SECRET')!
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+
   try {
     const { userId } = await req.json()
 
     if (!userId) {
       return new Response(JSON.stringify({ error: 'userId is required' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
@@ -20,12 +30,12 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ token, apiKey: API_KEY, userId }),
-      { headers: { 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
