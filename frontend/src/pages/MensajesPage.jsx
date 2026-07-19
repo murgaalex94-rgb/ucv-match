@@ -503,26 +503,57 @@ export default function MensajesPage() {
         const streamUserId = authUser.id;
         const displayName = user?.nombre || authUser.email || 'Usuario';
 
-        const session = await supabase.auth.getSession();
-        const accessToken = session.data.session?.access_token;
-        if (!accessToken) throw new Error('No hay sesión activa');
-
-        const response = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`
-          },
-          body: JSON.stringify({ userId: streamUserId })
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Error HTTP ${response.status}: ${errorText}`);
+        // Check sessionStorage for cached token
+        const storageKey = `stream_token_${streamUserId}`;
+        let token = null;
+        
+        try {
+          const cached = sessionStorage.getItem(storageKey);
+          if (cached) {
+            const { token: cachedToken, expiresAt } = JSON.parse(cached);
+            // Check if token is still valid (with 5 min buffer)
+            if (cachedToken && expiresAt && Date.now() < expiresAt - 5 * 60 * 1000) {
+              token = cachedToken;
+              console.log('[Stream] Using cached token');
+            }
+          }
+        } catch (e) {
+          console.warn('[Stream] Failed to parse cached token:', e);
         }
 
-        const tokenData = await response.json();
-        const token = tokenData.token;
+        // Fetch new token if no valid cached token
+        if (!token) {
+          const session = await supabase.auth.getSession();
+          const accessToken = session.data.session?.access_token;
+          if (!accessToken) throw new Error('No hay sesión activa');
+
+          const response = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({ userId: streamUserId })
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Error HTTP ${response.status}: ${errorText}`);
+          }
+
+          const tokenData = await response.json();
+          token = tokenData.token;
+
+          // Cache token with expiration (decode JWT to get exp)
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const expiresAt = payload.exp * 1000; // JWT exp is in seconds
+            sessionStorage.setItem(storageKey, JSON.stringify({ token, expiresAt }));
+            console.log('[Stream] Cached new token, expires:', new Date(expiresAt).toISOString());
+          } catch (e) {
+            console.warn('[Stream] Failed to cache token:', e);
+          }
+        }
 
         await Promise.race([
           client.connectUser(

@@ -1,8 +1,11 @@
--- ============================================
--- AUDIT LOGS TABLE + TRIGGER FOR MENTORIAS
--- ============================================
+-- Cleanup old broken audit objects (with CASCADE for dependent triggers)
+DROP TRIGGER IF EXISTS audit_trigger ON public.mentorias;
+DROP TRIGGER IF EXISTS audit_mentorias_trigger ON public.mentorias;
+DROP TRIGGER IF EXISTS audit_profiles_trigger ON public.profiles;
 
--- 1. Drop and recreate table to ensure clean schema
+DROP FUNCTION IF EXISTS public.audit_trigger_func() CASCADE;
+
+-- Recreate audit_logs table with correct schema
 DROP TABLE IF EXISTS public.audit_logs CASCADE;
 
 CREATE TABLE public.audit_logs (
@@ -28,7 +31,7 @@ CREATE POLICY "Users can view own audit logs" ON public.audit_logs
 CREATE POLICY "Service role can insert audit logs" ON public.audit_logs
   FOR INSERT WITH CHECK (auth.role() = 'service_role');
 
--- 2. Create audit trigger function
+-- Correct audit trigger function
 CREATE OR REPLACE FUNCTION public.audit_mentorias_changes()
 RETURNS trigger AS $$
 DECLARE
@@ -60,7 +63,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 3. Attach trigger (only if mentorias table exists with estado column)
+-- Attach trigger
 DO $$
 BEGIN
   IF EXISTS (
@@ -74,6 +77,6 @@ BEGIN
   END IF;
 END $$;
 
--- 4. Permissions
+-- Permissions
 GRANT SELECT ON public.audit_logs TO authenticated;
 GRANT INSERT ON public.audit_logs TO service_role;
