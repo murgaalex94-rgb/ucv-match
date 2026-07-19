@@ -477,12 +477,9 @@ export default function MensajesPage() {
   const [contactProfile, setContactProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
-
-  useEffect(() => {
-    const handleKey = (e) => { if (e.key === 'Escape' && imageViewer) setImageViewer(null); };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [imageViewer]);
+  const [retryCount, setRetryCount] = useState(0);
+  const [maxRetries] = useState(3);
+  const initChatRef = useRef(null);
 
   useEffect(() => {
     if (!user) return;
@@ -490,6 +487,8 @@ export default function MensajesPage() {
     const state = { cancelled: false, client: null, timeoutId: null };
 
     const initChat = async () => {
+      setErrorMsg('');
+      setLoading(true);
       const client = new StreamChat(API_KEY);
       state.client = client;
 
@@ -602,6 +601,18 @@ export default function MensajesPage() {
       }, 40000);
     };
 
+    initChatRef.current = initChat;
+
+    const handleRetry = () => {
+      if (retryCount >= maxRetries) {
+        setErrorMsg('El chat está temporalmente fuera de servicio. Por favor, recarga la página en unos segundos.');
+        return;
+      }
+      setRetryCount(c => c + 1);
+      setErrorMsg('El chat está iniciando... Por favor, espera unos segundos.');
+      initChatRef.current?.();
+    };
+
     initChat();
 
     return () => {
@@ -712,10 +723,22 @@ export default function MensajesPage() {
             {errorMsg && (
               <p className="text-xs text-red-500 mb-2 bg-red-50 p-2 rounded-lg font-mono">Error: {errorMsg}</p>
             )}
-            <p className="text-xs text-gray-400 mb-4">Revisa que la API Key y Secret Key sean correctas y que tu App de Stream esté activa en <span className="font-medium">getstream.io</span></p>
-            <button onClick={() => window.location.reload()}
+            {retryCount >= maxRetries ? (
+              <p className="text-xs text-gray-400 mb-4">
+                El chat está temporalmente fuera de servicio. Por favor, recarga la página en unos segundos.
+              </p>
+            ) : retryCount > 0 ? (
+              <p className="text-xs text-gray-400 mb-4">
+                Intento {retryCount} de {maxRetries}...
+              </p>
+            ) : (
+              <p className="text-xs text-gray-400 mb-4">
+                El chat está iniciando... Por favor, espera unos segundos.
+              </p>
+            )}
+            <button onClick={handleRetry}
               className="px-4 py-2 bg-[#0f2a5c] text-white rounded-lg text-sm hover:bg-[#0f2a5c]/90 transition">
-              Reintentar
+              {retryCount >= maxRetries ? 'Recargar página' : 'Reintentar'}
             </button>
           </div>
         </div>
