@@ -2,42 +2,49 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Users, UserCheck, BookOpen, LogOut } from 'lucide-react'
+import { getAdminStats, getPendingSeniors, approveSenior, rejectSenior } from '../lib/supabaseServices'
 
 const DashboardAdmin = () => {
-  const [stats, setStats] = useState({
-    totalUsuarios: 156,
-    seniorsPendientes: 2,
-    mentoriasActivas: 24
-  })
-  const [pendingSeniors, setPendingSeniors] = useState([
-    { id: 1, nombre: 'María García', carrera: 'Ingeniería de Sistemas', ciclo: 7, promedio: 4.2 },
-    { id: 2, nombre: 'Carlos López', carrera: 'Administración', ciclo: 8, promedio: 3.8 }
-  ])
+  const [stats, setStats] = useState({ totalUsuarios: 0, seniorsPendientes: 0, mentoriasActivas: 0 })
+  const [pendingSeniors, setPendingSeniors] = useState([])
   const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(null)
 
   const { logout, user } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Simular carga de datos
-    setTimeout(() => {
-      setLoading(false)
-    }, 1000)
+    loadData()
   }, [])
+
+  const loadData = async () => {
+    setLoading(true)
+    const [statsData, seniorsData] = await Promise.all([
+      getAdminStats(),
+      getPendingSeniors()
+    ])
+    setStats(statsData)
+    setPendingSeniors(seniorsData)
+    setLoading(false)
+  }
 
   const handleLogout = () => {
     logout()
     navigate('/login')
   }
 
-  const handleApprove = (id) => {
-    console.log('Aprobar senior:', id)
-    // Aquí se implementaría la llamada al backend
+  const handleApprove = async (id) => {
+    setActionLoading(id)
+    await approveSenior(id)
+    await loadData()
+    setActionLoading(null)
   }
 
-  const handleReject = (id) => {
-    console.log('Rechazar senior:', id)
-    // Aquí se implementaría la llamada al backend
+  const handleReject = async (id) => {
+    setActionLoading(id)
+    await rejectSenior(id, 'Solicitud rechazada por el administrador')
+    await loadData()
+    setActionLoading(null)
   }
 
   return (
@@ -135,23 +142,25 @@ const DashboardAdmin = () => {
                   <tbody>
                     {pendingSeniors.map((senior) => (
                       <tr key={senior.id} className="border-b border-slate-100">
-                        <td className="py-3 px-4 text-slate-800">{senior.nombre}</td>
-                        <td className="py-3 px-4 text-slate-600">{senior.carrera}</td>
-                        <td className="py-3 px-4 text-slate-600">{senior.ciclo}</td>
-                        <td className="py-3 px-4 text-slate-600">{senior.promedio}</td>
+                        <td className="py-3 px-4 text-slate-800">{senior.usuario?.nombre_completo || 'N/A'}</td>
+                        <td className="py-3 px-4 text-slate-600">{senior.usuario?.carrera || 'N/A'}</td>
+                        <td className="py-3 px-4 text-slate-600">{senior.usuario?.ciclo || 'N/A'}</td>
+                        <td className="py-3 px-4 text-slate-600">{senior.usuario?.promedio || 'N/A'}</td>
                         <td className="py-3 px-4">
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleApprove(senior.id)}
-                              className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm"
+                              disabled={actionLoading === senior.id}
+                              className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm disabled:opacity-50"
                             >
-                              Aprobar
+                              {actionLoading === senior.id ? '...' : 'Aprobar'}
                             </button>
                             <button
                               onClick={() => handleReject(senior.id)}
-                              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm"
+                              disabled={actionLoading === senior.id}
+                              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm disabled:opacity-50"
                             >
-                              Rechazar
+                              {actionLoading === senior.id ? '...' : 'Rechazar'}
                             </button>
                           </div>
                         </td>

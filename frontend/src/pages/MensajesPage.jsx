@@ -1,39 +1,34 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { StreamChat } from 'stream-chat';
 import {
   Chat,
   Channel,
+  ChannelList,
   Window,
   MessageList,
   MessageComposer,
   WithComponents,
   Attachment as DefaultAttachment,
+  useChatContext,
+  useMessageComposerContext,
+  useMessageComposerController,
 } from 'stream-chat-react';
 import 'stream-chat-react/dist/css/index.css';
 import {
-  Bell, BellOff, Search, ChevronDown, MoreHorizontal,
+  Search, ChevronDown, MoreHorizontal,
   Phone, Video, X, Info, Send,
   FileText, Image, Video as VideoIcon,
-  Download, ExternalLink, File, Trash2, Ban, Mail, MessageSquare, Reply, Table, Monitor, Archive, Pin, Pencil, Clipboard,
+  Download, ExternalLink, File, Trash2, Ban, Mail, MessageSquare, Reply, Table, Monitor, Archive, Pin, Pencil, Clipboard, Smile, MoreVertical, User, BellOff,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
-import streamTokens from '../data/stream-tokens.json';
+import Header from '../components/Header';
+import { supabase } from '../lib/supabase';
+import EmojiPickerReact from 'emoji-picker-react';
 
-const API_KEY = '6w2ddzpb7xaw';
+const API_KEY = import.meta.env.VITE_STREAM_API_KEY || '3mgv7c3pnrhu';
 
-const defaultConversations = [
-  { id: 1, name: 'Carlos Gómez', avatar: 'CG', lastMessage: 'Perfecto, entonces quedamos para el viernes a las 5pm.', time: '10:32', unread: 2, online: true, subject: 'Mentoría Matemática II' },
-  { id: 2, name: 'María Fernández', avatar: 'MF', lastMessage: 'Te comparto los apuntes de álgebra lineal.', time: '09:15', unread: 0, online: false, subject: 'Mentoría Álgebra Lineal' },
-  { id: 3, name: 'José Ramírez', avatar: 'JR', lastMessage: 'Revisa el código que te compartí en el repo.', time: 'Ayer', unread: 1, online: true, subject: 'Mentoría Programación Java' },
-  { id: 4, name: 'Ana Torres', avatar: 'AT', lastMessage: '¿Podemos adelantar la sesión de esta semana?', time: 'Ayer', unread: 0, online: false, subject: 'Mentoría Python DS' },
-  { id: 5, name: 'Roberto Silva', avatar: 'RS', lastMessage: 'Excelente trabajo en el proyecto final.', time: 'Lun', unread: 0, online: true, subject: 'Mentoría JavaScript' },
-  { id: 6, name: 'Soporte UCV Match', avatar: 'SU', lastMessage: 'Tu solicitud de mentoría ha sido aprobada.', time: 'Lun', unread: 0, online: true, subject: 'Soporte' }
-];
-
-// ==============================================
-// 1. FUNCIONES DE METADATOS DE ARCHIVOS
-// ==============================================
 const getFileMetadata = (attachment) => {
   const name = attachment.title || attachment.fallback || '';
   const ext = name.split('.').pop().toLowerCase();
@@ -61,9 +56,6 @@ const getFileTypeText = (file) => {
   return meta.label;
 };
 
-// ==============================================
-// 3. TARJETA VERDE DE ARCHIVO (PDF, Word, PPT, etc.)
-// ==============================================
 const GreenCardAttachment = ({ attachment, onImageClick }) => {
   if (!attachment || (!attachment.image_url && !attachment.asset_url)) return null;
 
@@ -90,11 +82,9 @@ const GreenCardAttachment = ({ attachment, onImageClick }) => {
 
   return (
     <div className="w-[280px] flex flex-col rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
-      {/* PARTE SUPERIOR (BLANCA) - EL ICONO */}
       <div className="h-24 bg-white flex items-center justify-center">
         {getFileIcon(file)}
       </div>
-      {/* PARTE MEDIA (VERDE CLARO) - EL NOMBRE Y TAMAÑO */}
       <div className="bg-[#dcfce7] px-4 py-2 border-t border-[#bbf7d0]">
         <p className="text-sm font-medium text-gray-800 truncate max-w-[220px]">
           {file.name}
@@ -105,7 +95,6 @@ const GreenCardAttachment = ({ attachment, onImageClick }) => {
           <span>{getFileTypeText(file)}</span>
         </div>
       </div>
-      {/* PARTE INFERIOR (BOTONES) */}
       <div className="flex divide-x divide-[#bbf7d0] bg-[#dcfce7]">
         <button
           onClick={() => window.open(file.url, '_blank')}
@@ -129,9 +118,6 @@ const GreenCardAttachment = ({ attachment, onImageClick }) => {
   );
 };
 
-// ==============================================
-// 4. MODAL DE VISTA PREVIA DE ARCHIVOS NO VISUALES (PDF, Word, etc.)
-// ==============================================
 const FilePreviewModal = ({ file, fileType, onSend, onClose }) => {
   const [text, setText] = useState('');
   const objectUrl = useMemo(() => file ? URL.createObjectURL(file) : null, [file]);
@@ -157,7 +143,6 @@ const FilePreviewModal = ({ file, fileType, onSend, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col">
-      {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
         <button onClick={handleClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
           <X className="w-6 h-6 text-gray-700" />
@@ -166,7 +151,6 @@ const FilePreviewModal = ({ file, fileType, onSend, onClose }) => {
         <div className="w-8" />
       </div>
 
-      {/* Preview area */}
       <div className="flex-1 relative bg-gray-50">
         {isImageFile ? (
           <img src={objectUrl} alt={file?.name} className="absolute inset-0 w-full h-full object-contain" />
@@ -190,7 +174,6 @@ const FilePreviewModal = ({ file, fileType, onSend, onClose }) => {
         )}
       </div>
 
-      {/* Bottom bar */}
       <div className="flex items-center gap-3 px-4 py-3 border-t border-gray-200 bg-white shrink-0">
         <input
           type="text"
@@ -205,19 +188,242 @@ const FilePreviewModal = ({ file, fileType, onSend, onClose }) => {
           <Send className="w-5 h-5" />
         </button>
       </div>
-
     </div>
   );
 };
 
+const ActiveChannelSync = ({ setActiveChannel }) => {
+  const { channel } = useChatContext();
+  useEffect(() => { setActiveChannel(channel); }, [channel, setActiveChannel]);
+  return null;
+};
 
+const CustomEmojiPicker = () => {
+  const { textareaRef } = useMessageComposerContext();
+  const { textComposer } = useMessageComposerController();
+  const [showPicker, setShowPicker] = useState(false);
+  const pickerRef = useRef(null);
 
+  useEffect(() => {
+    if (showPicker) {
+      document.body.classList.add('overflow-hidden');
+    } else {
+      document.body.classList.remove('overflow-hidden');
+    }
+    return () => document.body.classList.remove('overflow-hidden');
+  }, [showPicker]);
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target) && !e.target.closest?.('.emoji-trigger-btn')) {
+        setShowPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
+  const onEmojiClick = (emojiData) => {
+    const emoji = emojiData.emoji;
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newText = textarea.value.substring(0, start) + emoji + textarea.value.substring(end);
+      textarea.value = newText;
+      textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+      textComposer.handleChange({
+        selection: { start, end: start + emoji.length },
+        text: newText,
+      });
+      textarea.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
+    }
+    setShowPicker(false);
+  };
 
-// ==============================================
-// 6. COMPONENTE PRINCIPAL
-// ==============================================
+  return (
+    <div className="relative flex items-center">
+      <button
+        onClick={() => setShowPicker(!showPicker)}
+        className="emoji-trigger-btn p-2 rounded-full hover:bg-gray-100 transition-colors"
+        title="Emojis"
+      >
+        <Smile className="w-5 h-5 text-gray-500" />
+      </button>
+      {showPicker && (
+        <div ref={pickerRef} className="absolute bottom-full left-0 z-50 mb-2">
+          <div className="h-[350px] overflow-y-auto">
+            <EmojiPickerReact
+              locale="es"
+              searchPlaceholder="Buscar emoji"
+              labels={{
+                categories: {
+                  suggested: 'Sugeridos',
+                  smileys_people: 'Smileys y personas',
+                  animals_nature: 'Animales y naturaleza',
+                  food_drink: 'Comida y bebida',
+                  activity: 'Actividad',
+                  travel_places: 'Viajes y lugares',
+                  objects: 'Objetos',
+                  symbols: 'Símbolos',
+                  flags: 'Banderas'
+                }
+              }}
+              onEmojiClick={onEmojiClick}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CustomSendButton = ({ sendMessage }) => (
+  <button
+    onClick={sendMessage}
+    className="str-chat__send-button"
+    aria-label="Enviar"
+  >
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+  </button>
+);
+
+const ChatHeader = ({
+  setShowCallModal,
+  chatBlocked, setChatBlocked,
+  setShowProfileModal,
+  setShowClearChatModal,
+  setShowDeleteChatModal,
+  mutedChats, setMutedChats,
+}) => {
+  const { channel } = useChatContext();
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  if (!channel) return null;
+
+  const members = Object.values(channel.state?.members || {});
+  const otherMember = members.find(m => m.user?.id !== channel.state?.members?.[Object.keys(channel.state?.members || {})[0]]?.user?.id);
+  const displayName = channel.data?.name || otherMember?.user?.name || 'Chat';
+  const initials = displayName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-9 h-9 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
+          {initials}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-800 truncate">{displayName}</p>
+          <p className="text-xs text-gray-400">En línea</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="relative" ref={menuRef}>
+          <button onClick={() => setShowMenu(!showMenu)} className="p-2 rounded-full hover:bg-gray-100 transition-colors" title="Opciones">
+            <MoreVertical className="w-5 h-5 text-gray-500" />
+          </button>
+          {showMenu && (
+            <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
+              <button
+                onClick={() => { setShowProfileModal(true); setShowMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <User className="w-4 h-4 text-gray-400" /> Ver perfil
+              </button>
+              <button
+                onClick={() => {
+                  const newMuted = new Set(mutedChats);
+                  if (newMuted.has(channel.cid)) newMuted.delete(channel.cid);
+                  else newMuted.add(channel.cid);
+                  setMutedChats(newMuted);
+                  setShowMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <BellOff className="w-4 h-4 text-gray-400" /> {mutedChats.has(channel.cid) ? 'Activar notificaciones' : 'Silenciar notificaciones'}
+              </button>
+              <button
+                onClick={() => { setShowClearChatModal(true); setShowMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Trash2 className="w-4 h-4 text-gray-400" /> Vaciar chat
+              </button>
+              <button
+                onClick={() => { setChatBlocked(!chatBlocked); setShowMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Ban className="w-4 h-4 text-gray-400" /> {chatBlocked ? 'Desbloquear contacto' : 'Bloquear contacto'}
+              </button>
+              <hr className="my-1 border-gray-100" />
+              <button
+                onClick={() => { setShowDeleteChatModal(true); setShowMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors font-medium"
+              >
+                <Trash2 className="w-4 h-4 text-red-400" /> Eliminar chat
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setShowCallModal, setShowProfileModal, setShowClearChatModal, setShowDeleteChatModal, mutedChats, setMutedChats, uploadError }) => {
+  const { channel } = useChatContext();
+
+  if (!channel) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-400 text-sm">Selecciona un chat para empezar</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Channel>
+      <WithComponents overrides={{ Attachment: CustomAttachment, EmojiPicker: CustomEmojiPicker, SendButton: CustomSendButton }}>
+        <Window>
+          <ChatHeader
+            setShowCallModal={setShowCallModal}
+            chatBlocked={chatBlocked}
+            setChatBlocked={setChatBlocked}
+            setShowProfileModal={setShowProfileModal}
+            setShowClearChatModal={setShowClearChatModal}
+            setShowDeleteChatModal={setShowDeleteChatModal}
+            mutedChats={mutedChats}
+            setMutedChats={setMutedChats}
+          />
+          <MessageList />
+          {chatBlocked && (
+            <div className="border-t border-gray-200 p-4 bg-white text-center text-sm text-gray-400">
+              Chat bloqueado. Desbloquea desde el menú de opciones.
+            </div>
+          )}
+          {uploadError && (
+            <div className="px-4 py-2 bg-red-50 border-t border-red-200 text-xs text-red-700 text-center">
+              {uploadError}
+            </div>
+          )}
+          {!chatBlocked && <MessageComposer />}
+        </Window>
+      </WithComponents>
+    </Channel>
+  );
+};
+
 const messageBubbleStyle = `
   .str-chat__message--me .str-chat__message-inner .str-chat__message-bubble,
   .str-chat__message--other .str-chat__message-inner .str-chat__message-bubble {
@@ -226,10 +432,23 @@ const messageBubbleStyle = `
   .str-chat__message-emoji {
     font-size: 2.25rem !important;
   }
+  .str-chat__channel-list-messenger__header {
+    display: none !important;
+  }
+  .str-chat__channel-list-messenger {
+    border: none !important;
+  }
+  .str-chat__channel-preview-messenger {
+    border: none !important;
+  }
+  .str-chat__message-composer__additional-actions {
+    order: -1 !important;
+  }
 `;
 
 export default function MensajesPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [chatClient, setChatClient] = useState(null);
   const [activeChannel, setActiveChannel] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -246,16 +465,11 @@ export default function MensajesPage() {
   const [fileMessageText, setFileMessageText] = useState('');
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [imageViewer, setImageViewer] = useState(null);
-  const [conversations, setConversations] = useState(defaultConversations);
   const [mutedChats, setMutedChats] = useState(new Set());
-  
-
-  const filteredConversations = conversations.filter(c =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.subject.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const activeConv = conversations.find(c => c.id === (activeChannel ? parseInt(activeChannel.id.replace('channel-', '')) : 1)) || conversations[0];
+  const [noChannels, setNoChannels] = useState(false);
+  const [contactProfile, setContactProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
 
   useEffect(() => {
     const handleKey = (e) => { if (e.key === 'Escape' && imageViewer) setImageViewer(null); };
@@ -263,19 +477,28 @@ export default function MensajesPage() {
     return () => document.removeEventListener('keydown', handleKey);
   }, [imageViewer]);
 
-
-
   useEffect(() => {
-    const client = new StreamChat(API_KEY);
-    let cancelled = false;
+    if (!user) return;
+
+    const state = { cancelled: false, client: null, timeoutId: null };
 
     const initChat = async () => {
-      try {
-        const streamUserId = 'alex_murga';
-        const displayName = user?.nombre || 'Alex Murga';
+      const client = new StreamChat(API_KEY);
+      state.client = client;
 
-        const token = streamTokens[streamUserId];
-        if (!token) throw new Error('No token found for stream user');
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) {
+          navigate('/login');
+          return;
+        }
+
+        const streamUserId = authUser.id;
+        const displayName = user?.nombre || authUser.email || 'Usuario';
+
+        const { data: tokenData, error: tokenError } = await supabase.functions.invoke('generate-stream-token', { body: { userId: streamUserId } });
+        if (tokenError || !tokenData?.token) throw new Error(tokenError?.message || 'Error al obtener token de Stream Chat');
+        const token = tokenData.token;
 
         await Promise.race([
           client.connectUser(
@@ -287,70 +510,72 @@ export default function MensajesPage() {
           )
         ]);
 
-        if (cancelled) return;
-
-        const firstConv = conversations[0];
-        const firstChannel = client.channel('messaging', `channel-${firstConv.id}`, {
-          name: firstConv.name,
-          members: ['alex_murga'],
-          subject: firstConv.subject,
-        });
-
-        await Promise.race([
-          firstChannel.watch(),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Channel watch timeout')), 10000)
-          )
-        ]);
-
-        if (cancelled) return;
+        if (state.cancelled) return;
 
         setChatClient(client);
-        setActiveChannel(firstChannel);
         setLoading(false);
+
+        try {
+          const filter = { members: { $in: [streamUserId] } };
+          const channels = await client.queryChannels(filter, {}, { limit: 1 });
+          if (channels.length === 0) {
+            setNoChannels(true);
+          }
+        } catch (queryErr) {
+          console.log('Error querying channels:', queryErr);
+        }
       } catch (err) {
         console.error('Stream Chat init error:', err);
-        if (!cancelled) {
+        if (!state.cancelled) {
           setErrorMsg(err?.message || err?.toString() || 'Error desconocido');
           setLoading(false);
         }
       }
-    };
 
-    const timeoutId = setTimeout(() => {
-      if (!cancelled) {
-        setErrorMsg('Tiempo de espera agotado (20s)');
-        setLoading(false);
-      }
-    }, 20000);
+      state.timeoutId = setTimeout(() => {
+        if (!state.cancelled) {
+          setErrorMsg('Tiempo de espera agotado (20s)');
+          setLoading(false);
+        }
+      }, 20000);
+    };
 
     initChat();
 
     return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-      client.disconnectUser();
+      state.cancelled = true;
+      if (state.timeoutId) clearTimeout(state.timeoutId);
+      if (state.client) state.client.disconnectUser();
     };
-  }, [user]);
+  }, [user?.id, navigate]);
 
-  const handleSelectConversation = async (conv) => {
-    if (!chatClient) return;
-    try {
-      setConversations((prev) =>
-        prev.map((c) => (c.id === conv.id ? { ...c, unread: 0 } : c))
-      );
-      const channel = chatClient.channel('messaging', `channel-${conv.id}`, {
-        name: conv.name,
-        members: ['alex_murga'],
-        subject: conv.subject,
-        own_capabilities: ['send-message', 'update-own-message', 'delete-own-message'],
-      });
-      await channel.watch();
-      setActiveChannel(channel);
-    } catch (err) {
-      console.error('Error selecting channel:', err);
+  useEffect(() => {
+    if (showProfileModal && activeChannel) {
+      const fetchProfile = async () => {
+        setProfileLoading(true);
+        try {
+          const members = Object.values(activeChannel.state?.members || {});
+          const otherMember = members.find(m => m.user?.id !== user?.id);
+          const otherUserId = otherMember?.user?.id;
+          if (otherUserId) {
+            const { data } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', otherUserId)
+              .single();
+            setContactProfile(data || { id: otherUserId, nombre_completo: otherMember?.user?.name });
+          }
+        } catch (e) {
+          console.error('Error fetching profile:', e);
+        } finally {
+          setProfileLoading(false);
+        }
+      };
+      fetchProfile();
+    } else if (!showProfileModal) {
+      setContactProfile(null);
     }
-  };
+  }, [showProfileModal, activeChannel, user?.id]);
 
   const handleClearChat = async () => {
     try {
@@ -365,6 +590,21 @@ export default function MensajesPage() {
       setTimeout(() => setUploadError(''), 5000);
     }
     setShowClearChatModal(false);
+  };
+
+  const handleDeleteChat = async () => {
+    try {
+      if (activeChannel) {
+        await activeChannel.delete();
+        setActiveChannel(null);
+        setShowDeleteChatModal(false);
+      }
+    } catch (err) {
+      console.error('Error deleting channel:', err);
+      setUploadError(err?.message || 'Error al eliminar el chat');
+      setTimeout(() => setUploadError(''), 5000);
+      setShowDeleteChatModal(false);
+    }
   };
 
   const CustomAttachment = useMemo(() => {
@@ -471,123 +711,49 @@ export default function MensajesPage() {
       <Sidebar />
 
       <div className="flex-1 lg:ml-64 flex flex-col h-screen">
-        <div className="bg-white border-b border-gray-200 px-4 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-gray-800">Mensajes</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <button className="p-2 bg-gray-100 rounded-full text-gray-600 hover:bg-gray-200">
-              <Bell className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full pl-1 pr-3 py-1 cursor-pointer">
-              <div className="w-8 h-8 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-xs font-bold">
-                {user?.nombre ? user.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'AM'}
-              </div>
-              <span className="text-sm font-medium text-gray-700">{user?.nombre || 'Alex Murga'}</span>
-              <ChevronDown className="w-3 h-3 text-gray-400" />
+        <div className="px-4 lg:px-8 py-4 mb-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Mensajes</h1>
+              <p className="text-gray-500 text-sm mt-2">Chatea con mentores y estudiantes.</p>
+            </div>
+            <div className="flex items-center gap-4 w-full md:w-auto">
+              <Header nombreUsuario={user?.nombre || 'Usuario'} initials={user?.nombre ? user.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U'} avatarUrl={user?.avatar_url} />
             </div>
           </div>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
-          <div className="w-full md:w-80 lg:w-96 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0">
-            <div className="p-4 border-b border-gray-100">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar conversaciones..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
-                />
-              </div>
+        <Chat client={chatClient} theme="messaging light">
+          <ActiveChannelSync setActiveChannel={setActiveChannel} />
+          <div className="flex flex-1 overflow-hidden">
+            {/* LEFT PANEL - CHANNEL LIST */}
+            <div className="w-full md:w-80 lg:w-96 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0">
+              <ChannelList
+                filters={{ members: { $in: [user.id] } }}
+                options={{ limit: 5 }}
+              />
             </div>
-            <div className="divide-y divide-gray-100">
-              {filteredConversations.map((conv) => (
-                <div
-                  key={conv.id}
-                  onClick={() => handleSelectConversation(conv)}
-                  className={`flex items-start gap-3 p-4 cursor-pointer transition-colors ${
-                    activeConv.id === conv.id ? 'bg-[#0f2a5c]/5 border-l-2 border-[#0f2a5c]' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="relative flex-shrink-0">
-                    <div className="w-11 h-11 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">{conv.avatar}</div>
-                    {conv.online && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center">
-                      <p className="font-semibold text-gray-800 text-sm truncate">{conv.name}</p>
-                      <span className="text-[10px] text-gray-400 flex-shrink-0">{conv.time}</span>
-                    </div>
-                    <p className="text-[11px] text-gray-500 truncate mt-0.5">{conv.subject}</p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <p className="text-xs text-gray-500 truncate flex-1">{conv.lastMessage}</p>
-                      {conv.unread > 0 && (
-                        <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0">{conv.unread}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
 
-          <div className="flex-1 flex flex-col bg-white">
-            <Chat client={chatClient} theme="messaging light">
-              {activeChannel && (
-                <Channel channel={activeChannel}>
-                  <WithComponents overrides={{
-                    Attachment: CustomAttachment,
-                  }}>
-                  <Window>
-                    <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">{activeConv.avatar}</div>
-                        <div>
-                          <p className="font-semibold text-gray-800 text-sm">{activeConv.name}</p>
-                          <p className="text-xs text-green-600">{activeConv.online ? 'En línea' : 'Desconectado'}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setShowCallModal(true)}
-                          className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"><Phone className="w-4 h-4" /></button>
-                        <button onClick={() => setShowCallModal(true)}
-                          className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"><Video className="w-4 h-4" /></button>
-                      </div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden bg-[#f5f7fa]" onContextMenu={(e) => e.preventDefault()}>
-                      <MessageList 
-                        onUserClick={() => setShowProfileModal(true)}
-                        messageActions={({ editMessage, deleteMessage, isMyMessage }) =>
-                          isMyMessage ? [editMessage, deleteMessage] : []
-                        }
-                      />
-                    </div>
-                    {chatBlocked && (
-                      <div className="border-t border-gray-200 p-4 bg-white text-center text-sm text-gray-400">
-                        Chat bloqueado. Desbloquea desde el menú de opciones.
-                      </div>
-                    )}
-                    {uploadError && (
-                      <div className="px-4 py-2 bg-red-50 border-t border-red-200 text-xs text-red-700 text-center">
-                        {uploadError}
-                      </div>
-                    )}
-                    {!chatBlocked && (
-                      <MessageComposer />
-                    )}
-                  </Window>
-                  </WithComponents>
-                  </Channel>
-              )}
-            </Chat>
+            {/* RIGHT PANEL - CHAT OR EMPTY STATE */}
+            <div className="flex-1 flex flex-col bg-white">
+              <RightPanelContent
+                CustomAttachment={CustomAttachment}
+                chatBlocked={chatBlocked}
+                setChatBlocked={setChatBlocked}
+                setShowCallModal={setShowCallModal}
+                setShowProfileModal={setShowProfileModal}
+                setShowClearChatModal={setShowClearChatModal}
+                setShowDeleteChatModal={setShowDeleteChatModal}
+                mutedChats={mutedChats}
+                setMutedChats={setMutedChats}
+                uploadError={uploadError}
+              />
+            </div>
           </div>
-        </div>
+        </Chat>
       </div>
 
-      {/* ===== MODALES DE ARCHIVOS (Imágenes, Videos, otros) ===== */}
+      {/* FILE PREVIEW MODALS */}
       {showFilePreview && pendingFile && pendingFile.type.startsWith('image/') && (
         <div className="fixed inset-0 z-50 bg-white flex flex-col">
           <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-white">
@@ -681,6 +847,54 @@ export default function MensajesPage() {
         />
       )}
 
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowProfileModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-800">Perfil del contacto</h3>
+              <button onClick={() => setShowProfileModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            {profileLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="w-8 h-8 border-4 border-[#0f2a5c] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : contactProfile ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-20 h-20 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                  {(contactProfile.nombre_completo || contactProfile.name || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                </div>
+                <div className="text-center w-full">
+                  <p className="text-base font-semibold text-gray-800">{contactProfile.nombre_completo || contactProfile.name || 'Sin nombre'}</p>
+                  <p className="text-sm text-gray-500 mt-1">{contactProfile.email || contactProfile.correo || ''}</p>
+                </div>
+                {contactProfile.carrera && (
+                  <div className="w-full bg-gray-50 rounded-xl p-3">
+                    <p className="text-xs text-gray-400 mb-1">Carrera</p>
+                    <p className="text-sm font-medium text-gray-700">{contactProfile.carrera}</p>
+                  </div>
+                )}
+                {contactProfile.ciclo && (
+                  <div className="w-full bg-gray-50 rounded-xl p-3">
+                    <p className="text-xs text-gray-400 mb-1">Ciclo</p>
+                    <p className="text-sm font-medium text-gray-700">{contactProfile.ciclo}</p>
+                  </div>
+                )}
+                {contactProfile.rol && (
+                  <div className="w-full bg-gray-50 rounded-xl p-3">
+                    <p className="text-xs text-gray-400 mb-1">Rol</p>
+                    <p className="text-sm font-medium text-gray-700 capitalize">{contactProfile.rol === 'Mentor' ? 'Mentor' : contactProfile.rol === 'Senior' ? 'Mentor senior' : contactProfile.rol}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-4">No se encontró información del contacto.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {showClearChatModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowClearChatModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4" onClick={e => e.stopPropagation()}>
@@ -700,11 +914,30 @@ export default function MensajesPage() {
         </div>
       )}
 
-      {showCallModal && activeConv && (
+      {showDeleteChatModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowDeleteChatModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Eliminar chat</h3>
+            <p className="text-sm text-gray-600 mb-6">¿Seguro que quieres eliminar este chat permanentemente? Todos los mensajes se perderán.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowDeleteChatModal(false)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                Cancelar
+              </button>
+              <button onClick={handleDeleteChat}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors">
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCallModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCallModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-800">Comunicarte con {activeConv.name}</h3>
+              <h3 className="text-lg font-bold text-gray-800">Comunicarte</h3>
               <button onClick={() => setShowCallModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="flex flex-col gap-3">
@@ -729,29 +962,6 @@ export default function MensajesPage() {
               <button onClick={() => setShowCallModal(false)}
                 className="w-full px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                 Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showProfileModal && activeConv && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowProfileModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-800">Perfil del mentor</h3>
-              <button onClick={() => setShowProfileModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-16 h-16 bg-[#0f2a5c] rounded-full flex items-center justify-center text-xl font-bold text-white">{activeConv.avatar}</div>
-              <p className="text-lg font-semibold text-gray-800">{activeConv.name}</p>
-              <p className="text-sm text-gray-500">{activeConv.subject}</p>
-              <span className={`text-xs font-medium ${activeConv.online ? 'text-green-600' : 'text-gray-400'}`}>
-                {activeConv.online ? 'En línea' : 'Desconectado'}
-              </span>
-              <button onClick={() => setShowProfileModal(false)}
-                className="mt-2 px-6 py-2 bg-[#0f2a5c] text-white rounded-full text-sm font-medium hover:bg-[#0f2a5c]/90 transition-colors">
-                Cerrar
               </button>
             </div>
           </div>
@@ -784,7 +994,6 @@ export default function MensajesPage() {
           <img src={imageViewer} className="max-w-full max-h-[90vh] object-contain" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
-
     </div>
   );
 };

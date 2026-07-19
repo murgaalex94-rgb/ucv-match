@@ -6,10 +6,8 @@ const HomePage = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  if (user) {
-    navigate('/dashboard-main')
-    return null
-  }
+  // If user is logged in, App.jsx will render Dashboard at /
+  // so no redirect needed here
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">

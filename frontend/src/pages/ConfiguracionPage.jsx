@@ -1,93 +1,266 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bell, Search,
-  ChevronDown, User, Lock, Eye, EyeOff, Mail, Phone,
-  Calendar as CalendarIcon, CheckCircle, AlertTriangle,
-  Camera, HelpCircle, MessageSquare,
-  Smartphone, LogOut, ChevronRight
+  Search,
+  User, Lock, Eye, EyeOff, Mail,
+  CheckCircle,
+  Camera, LogOut, AlertTriangle
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
+import { supabase } from '../lib/supabase';
+import MaterialDatePicker from '../components/MaterialDatePicker';
 
 export default function ConfiguracionPage() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState({ current: false, new: false, confirm: false });
-  const [toggle, setToggle] = useState({
-    emailNotify: true, pushNotify: true, darkMode: false,
-    mentorshipReminders: true, weeklySummary: false,
+  const [user, setUser] = useState(null);
+  const [profileData, setProfileData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({
+    nombres: '',
+    apellidos: '',
+    email: '',
+    fecha_nacimiento: '',
+    genero: '',
+    biografia: ''
   });
+  const [passwordData, setPasswordData] = useState({
+    current: '',
+    new: '',
+    confirm: ''
+  });
+  const [message, setMessage] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const fileInputRef = useRef(null);
 
-  const submenuItems = [
-    { label: 'Mi Cuenta', active: true },
-    { label: 'Notificaciones' },
-    { label: 'Privacidad' },
-    { label: 'Seguridad' },
-    { label: 'Preferencias' },
-    { label: 'Idioma y Región' },
-    { label: 'Métodos de Pago' },
-    { label: 'Dispositivos' },
-    { label: 'Ayuda y Soporte' },
-  ];
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        
+        if (!authUser) {
+          navigate('/login');
+          return;
+        }
 
-  const Toggle = ({ checked, onChange }) => (
-    <label className="relative inline-flex items-center cursor-pointer">
-      <input type="checkbox" checked={checked} onChange={onChange} className="sr-only peer" />
-      <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#0f2a5c]"></div>
-    </label>
-  );
+        setUser(authUser);
+
+        const { data: profileRow } = await supabase
+          .from('profiles')
+          .select('nombre_completo, email, avatar_url, genero, biografia, fecha_nacimiento')
+          .eq('id', authUser.id)
+          .single();
+
+        let displayName = profileRow?.nombre_completo || '';
+        let displayEmail = profileRow?.email || authUser.email || '';
+        let avatarUrl = profileRow?.avatar_url || '';
+        let displayGenero = profileRow?.genero || '';
+        let displayBiografia = profileRow?.biografia || '';
+        let displayFechaNac = profileRow?.fecha_nacimiento || '';
+
+        if (!displayName && authUser.user_metadata) {
+          displayName = authUser.user_metadata.full_name || authUser.user_metadata.name || '';
+        }
+
+        setProfileData({
+          nombre_completo: displayName,
+          email: displayEmail,
+          avatar_url: avatarUrl,
+        });
+
+        const nameParts = (displayName || '').split(' ');
+        const mid = Math.ceil(nameParts.length / 2);
+        setFormData({
+          nombres: nameParts.slice(0, mid).join(' ') || '',
+          apellidos: nameParts.slice(mid).join(' ') || '',
+          email: displayEmail,
+          fecha_nacimiento: displayFechaNac,
+          genero: displayGenero,
+          biografia: displayBiografia
+        });
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, [navigate]);
+
+
+  const handleSaveProfile = async () => {
+    try {
+      const nombreCompleto = `${formData.nombres} ${formData.apellidos}`.trim();
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          nombre_completo: nombreCompleto,
+          fecha_nacimiento: formData.fecha_nacimiento,
+          genero: formData.genero,
+          biografia: formData.biografia
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        setMessage('Error al guardar: ' + error.message);
+      } else {
+        setProfileData(prev => ({ ...prev, nombre_completo: nombreCompleto }));
+        setMessage('✅ Datos actualizados correctamente');
+        setTimeout(() => setMessage(''), 3000);
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      setMessage('Error al guardar cambios');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordData.new !== passwordData.confirm) {
+      setMessage('Las contraseñas no coinciden');
+      return;
+    }
+
+    if (passwordData.new.length < 8) {
+      setMessage('La contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.new
+      });
+
+      if (error) {
+        setMessage('Error al cambiar contraseña: ' + error.message);
+      } else {
+        setMessage('Contraseña cambiada exitosamente');
+        setPasswordData({ current: '', new: '', confirm: '' });
+        setTimeout(() => setMessage(''), 3000);
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      setMessage('Error al cambiar contraseña');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      const { error } = await supabase.auth.deleteUser();
+      if (error) throw error;
+      navigate('/login');
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      setMessage('Error al eliminar cuenta: ' + (error.message || ''));
+    }
+  };
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (!file.type.startsWith('image/')) {
+      setMessage('Solo se permiten imágenes');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setMessage('La imagen no debe superar los 2 MB');
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      // Ensure the avatars bucket exists (public)
+      try {
+        await supabase.storage.createBucket('avatars', { public: true });
+      } catch (_) {
+        // Bucket already exists, ignore
+      }
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setProfileData(prev => ({ ...prev, avatar_url: publicUrl }));
+      setMessage('Foto de perfil actualizada');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      if (error.message?.includes('row-level security') || error.message?.includes('violates')) {
+        setMessage(
+          'Error de permisos en Storage. Ejecuta este SQL en la consola de Supabase:\n' +
+          'CREATE POLICY "allow_insert_avatars" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = \'avatars\');'
+        );
+      } else {
+        setMessage('Error al subir la foto: ' + (error.message || ''));
+      }
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const nombreCompleto = profileData?.nombre_completo || '';
+  const email = profileData?.email || '';
+  const initials = nombreCompleto
+    ? nombreCompleto.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+    : email
+      ? email[0].toUpperCase()
+      : 'U';
 
   return (
     <div className="flex min-h-screen bg-[#f5f7fa] font-sans">
       <Sidebar />
 
       <div className="flex-1 lg:ml-64 p-4 lg:p-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Configuración ⚙️</h1>
-            <p className="text-gray-500 text-sm mt-1">Administra tu cuenta, preferencias y privacidad.</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 md:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input type="text" placeholder="Buscar en configuración..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]" />
+        <div className="max-w-4xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Configuración ⚙️</h1>
+              <p className="text-gray-500 text-sm mt-1">Administra tu cuenta y preferencias.</p>
             </div>
-            <button className="p-2 bg-gray-100 rounded-full text-gray-600 hover:bg-gray-200 relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full pl-1 pr-3 py-1 cursor-pointer">
-              <div className="w-8 h-8 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-xs font-bold">AM</div>
-              <span className="text-sm font-medium text-gray-700">Alex Murga</span>
-              <ChevronDown className="w-3 h-3 text-gray-400" />
+            <div className="flex items-center gap-4 w-full md:w-auto">
+              <Header nombreUsuario={nombreCompleto} initials={initials} avatarUrl={profileData?.avatar_url} />
             </div>
           </div>
-        </div>
-
-        <div className="flex flex-col lg:flex-row gap-8">
-          <aside className="w-full lg:w-56 flex-shrink-0">
-            <nav className="space-y-0.5 bg-white rounded-2xl shadow-sm border border-gray-200 p-2 sticky top-24">
-              {submenuItems.map((item) => (
-                <button
-                  key={item.label}
-                  onClick={() => { if (!item.active) navigate('/proximamente'); }}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                    item.active
-                      ? 'bg-[#0f2a5c] text-white'
-                      : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-              <hr className="my-2 border-gray-100" />
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
-                <LogOut className="w-4 h-4" />
-                Cerrar sesión
-              </button>
-            </nav>
-          </aside>
 
           <main className="flex-1 min-w-0 space-y-6">
+            {message && (
+              <div className={`p-4 rounded-xl text-sm ${
+                message.includes('Error') 
+                  ? 'bg-red-50 text-red-700 border border-red-200' 
+                  : 'bg-green-50 text-green-700 border border-green-200'
+              }`}>
+                {message}
+              </div>
+            )}
             <section className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2">
                 <User className="w-5 h-5 text-[#0f2a5c]" />
@@ -95,62 +268,104 @@ export default function ConfiguracionPage() {
               </h3>
               <div className="flex items-center gap-5 mb-8">
                 <div className="relative">
-                  <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 text-2xl font-bold">AM</div>
-                  <button className="absolute -bottom-1 -right-1 bg-white border border-gray-200 rounded-full p-1.5 shadow-sm hover:bg-gray-50 transition">
-                    <Camera className="w-4 h-4 text-gray-500" />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={avatarUploading}
+                    className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center bg-[#0f2a5c] text-white text-2xl font-bold hover:opacity-80 transition-opacity disabled:opacity-50"
+                  >
+                    {profileData?.avatar_url ? (
+                      <img src={profileData.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      initials
+                    )}
                   </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute -bottom-1 -right-1 w-7 h-7 bg-white rounded-full shadow-md border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                    title="Cambiar foto"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-gray-500" />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                  />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-800">Alex Murga</p>
-                  <p className="text-sm text-gray-500">Estudiante - Ingeniería de Sistemas</p>
-                  <p className="text-xs text-gray-400">Miembro desde Junio 2026</p>
+                  <p className="font-semibold text-gray-800">{nombreCompleto || 'Usuario'}</p>
+                  <p className="text-sm text-gray-500">Usuario</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombres</label>
-                  <input type="text" defaultValue="Alex" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" />
+                  <input 
+                    type="text" 
+                    value={formData.nombres}
+                    onChange={(e) => setFormData({ ...formData, nombres: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" 
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Apellidos</label>
-                  <input type="text" defaultValue="Murga" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" />
+                  <input 
+                    type="text" 
+                    value={formData.apellidos}
+                    onChange={(e) => setFormData({ ...formData, apellidos: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" 
+                  />
                 </div>
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Correo electrónico</label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input type="email" defaultValue="alex.murga@universidad.edu" disabled className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-500 cursor-not-allowed" />
+                    <input 
+                      type="email" 
+                      value={formData.email}
+                      disabled 
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-500 cursor-not-allowed" 
+                    />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input type="tel" defaultValue="+51 987 654 321" className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Fecha de nacimiento</label>
-                  <div className="relative">
-                    <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input type="date" defaultValue="2002-05-15" className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" />
-                  </div>
+                  <MaterialDatePicker
+                    value={formData.fecha_nacimiento}
+                    onChange={(val) => setFormData({ ...formData, fecha_nacimiento: val })}
+                    label="Fecha de nacimiento"
+                    placeholder="DD/MM/YYYY"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Género</label>
-                  <select className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] cursor-pointer bg-white">
-                    <option>Masculino</option>
-                    <option>Femenino</option>
-                    <option>Otro</option>
+                  <select
+                    value={formData.genero}
+                    onChange={(e) => setFormData({ ...formData, genero: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] bg-white"
+                  >
+                    <option value="">Seleccionar</option>
+                    <option value="Masculino">Masculino</option>
+                    <option value="Femenino">Femenino</option>
                   </select>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Biografía</label>
-                  <textarea rows={3} defaultValue="Estudiante de Ingeniería de Sistemas apasionado por la tecnología y la enseñanza." className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] resize-none" />
+                  <textarea
+                    value={formData.biografia}
+                    onChange={(e) => setFormData({ ...formData, biografia: e.target.value })}
+                    rows={4}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] resize-none"
+                    placeholder="Cuéntanos sobre ti..."
+                  />
                 </div>
               </div>
               <div className="mt-6 flex justify-end">
-                <button className="bg-[#0f2a5c] text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition flex items-center gap-2">
+                <button 
+                  onClick={handleSaveProfile}
+                  className="bg-[#0f2a5c] text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition flex items-center gap-2"
+                >
                   Guardar Cambios
                 </button>
               </div>
@@ -164,7 +379,6 @@ export default function ConfiguracionPage() {
               <div className="flex flex-col lg:flex-row gap-6">
                 <div className="flex-1 space-y-4">
                   {[
-                    { key: 'current', label: 'Contraseña actual', placeholder: '••••••••' },
                     { key: 'new', label: 'Nueva contraseña', placeholder: 'Ingresa nueva contraseña' },
                     { key: 'confirm', label: 'Confirmar nueva contraseña', placeholder: 'Confirma nueva contraseña' },
                   ].map((field) => (
@@ -174,6 +388,8 @@ export default function ConfiguracionPage() {
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
                           type={showPassword[field.key] ? 'text' : 'password'}
+                          value={passwordData[field.key]}
+                          onChange={(e) => setPasswordData({ ...passwordData, [field.key]: e.target.value })}
                           placeholder={field.placeholder}
                           className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
                         />
@@ -187,7 +403,10 @@ export default function ConfiguracionPage() {
                     </div>
                   ))}
                   <div className="flex justify-end pt-2">
-                    <button className="border border-[#0f2a5c] text-[#0f2a5c] px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/5 transition">
+                    <button 
+                      onClick={handleChangePassword}
+                      className="border border-[#0f2a5c] text-[#0f2a5c] px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/5 transition"
+                    >
                       Actualizar Contraseña
                     </button>
                   </div>
@@ -211,89 +430,77 @@ export default function ConfiguracionPage() {
               </div>
             </section>
 
-            <section className="border border-red-200 bg-red-50/50 rounded-2xl p-6">
-              <h3 className="text-lg font-semibold text-red-800 mb-2 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" />
-                Eliminar Cuenta
+            <section className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2">
+                <LogOut className="w-5 h-5 text-red-600" />
+                Cerrar Sesión
               </h3>
-              <p className="text-sm text-red-600 mb-4">Si eliminas tu cuenta, perderás todo tu contenido y no podrás recuperarlo.</p>
-              <button className="border border-red-300 text-red-700 px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-red-50 transition">
-                Eliminar mi cuenta
+              <p className="text-sm text-gray-600 mb-4">Al cerrar sesión, tendrás que volver a iniciar sesión para acceder a tu cuenta.</p>
+              <button 
+                onClick={() => setShowLogoutModal(true)}
+                className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-red-700 transition flex items-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                Cerrar Sesión
               </button>
             </section>
-          </main>
 
-          <aside className="w-full lg:w-72 flex-shrink-0 flex flex-col gap-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sticky top-24">
-              <h4 className="font-medium text-gray-800 mb-4 flex items-center gap-2">
-                <User className="w-4 h-4 text-[#0f2a5c]" />
-                Resumen de Cuenta
-              </h4>
-              <div className="space-y-3 text-sm">
-                {[
-                  { label: 'Rol', value: 'Estudiante' },
-                  { label: 'Miembro desde', value: '20 de Marzo, 2024' },
-                  { label: 'Plan actual', value: 'Gratuito' },
-                  { label: 'Cursos inscritos', value: '5' },
-                  { label: 'Mentorías realizadas', value: '12' },
-                  { label: 'Recursos guardados', value: '15' },
-                ].map((row) => (
-                  <div key={row.label} className="flex justify-between">
-                    <span className="text-gray-500">{row.label}</span>
-                    <span className="font-medium text-gray-800">{row.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-              <h4 className="font-medium text-gray-800 mb-4 flex items-center gap-2">
-                <Smartphone className="w-4 h-4 text-[#0f2a5c]" />
-                Preferencias Rápidas
-              </h4>
-              <div className="space-y-4">
-                {[
-                  { key: 'emailNotify', label: 'Notificaciones por correo' },
-                  { key: 'pushNotify', label: 'Notificaciones push' },
-                  { key: 'darkMode', label: 'Tema de la aplicación' },
-                  { key: 'mentorshipReminders', label: 'Recordatorios de mentorías' },
-                  { key: 'weeklySummary', label: 'Resumen semanal' },
-                ].map((item) => (
-                  <div key={item.key} className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">{item.label}</span>
-                    <Toggle
-                      checked={toggle[item.key]}
-                      onChange={() => setToggle({ ...toggle, [item.key]: !toggle[item.key] })}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-              <h4 className="font-medium text-gray-800 mb-4 flex items-center gap-2">
-                <HelpCircle className="w-4 h-4 text-[#0f2a5c]" />
-                Centro de Ayuda
-              </h4>
-              <div className="space-y-2">
-                {[
-                  { label: 'Preguntas frecuentes', icon: HelpCircle },
-                  { label: 'Contactar soporte', icon: Mail },
-                  { label: 'Enviar sugerencia', icon: MessageSquare },
-                ].map((link) => (
-                  <button
-                    key={link.label}
-                    onClick={() => navigate('/proximamente')}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-xl transition-colors"
-                  >
-                    <link.icon className="w-4 h-4 text-gray-400" />
-                    <span className="flex-1 text-left">{link.label}</span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+            <section className="bg-white rounded-2xl shadow-sm border border-red-200 p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-base font-semibold text-gray-800 mb-1">Eliminar Cuenta</h3>
+                  <p className="text-sm text-gray-600 mb-4">Al eliminar tu cuenta, todos tus datos serán eliminados permanentemente. Esta acción no se puede deshacer.</p>
+                  <button onClick={() => setShowDeleteModal(true)} className="border border-red-500 text-red-600 px-5 py-2 rounded-xl text-sm font-medium hover:bg-red-50 transition">
+                    Eliminar mi cuenta
                   </button>
-                ))}
+                </div>
               </div>
-            </div>
-          </aside>
+            </section>
+
+            {/* Logout confirmation modal */}
+            {showLogoutModal && (
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => setShowLogoutModal(false)}>
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-lg font-bold text-gray-800 mb-2">¿Seguro que quieres cerrar sesión?</h3>
+                  <p className="text-sm text-gray-600 mb-6">Tendrás que volver a iniciar sesión para acceder a tu cuenta.</p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowLogoutModal(false)} className="flex-1 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                      Cancelar
+                    </button>
+                    <button onClick={handleLogout} className="flex-1 bg-red-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-red-700 transition">
+                      Sí, cerrar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Delete account confirmation modal */}
+            {showDeleteModal && (
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => setShowDeleteModal(false)}>
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertTriangle className="w-6 h-6 text-red-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-800 mb-2 text-center">Eliminar cuenta</h3>
+                  <p className="text-sm text-gray-600 mb-6 text-center">Esta acción eliminará permanentemente tu cuenta y todos tus datos. ¿Estás seguro?</p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowDeleteModal(false)} className="flex-1 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                      Cancelar
+                    </button>
+                    <button onClick={handleDeleteAccount} className="flex-1 bg-red-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-red-700 transition">
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
         </div>
       </div>
     </div>

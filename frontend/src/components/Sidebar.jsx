@@ -1,19 +1,49 @@
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Calendar, MessageSquare, Settings
+  LayoutDashboard, Users, Calendar, MessageSquare, Settings,
+  Globe, BookOpen, Trophy, FileText, Library
 } from 'lucide-react';
+import InviteModal from './InviteModal';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', route: '/dashboard-main' },
+  { icon: LayoutDashboard, label: 'Dashboard', route: '/dashboard' },
   { icon: Users, label: 'Mentores', route: '/mentores' },
   { icon: Calendar, label: 'Mentorías', route: '/mentorias' },
-  { icon: MessageSquare, label: 'Mensajes', badge: 1, route: '/mensajes' },
+  { icon: MessageSquare, label: 'Mensajes', route: '/mensajes', badgeKey: 'mensajes' },
+  { icon: Globe, label: 'Comunidad', route: '/comunidad' },
+  { icon: BookOpen, label: 'Mis Cursos', route: '/mis-cursos' },
+  { icon: Trophy, label: 'Logros', route: '/logros' },
+  { icon: FileText, label: 'Reportes', route: '/reportes' },
+  { icon: Library, label: 'Recursos', route: '/recursos' },
   { icon: Settings, label: 'Configuración', route: '/configuracion' },
 ];
 
 export default function Sidebar() {
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const cargarNoLeidos = async () => {
+      try {
+        const { count } = await supabase
+          .from('notificaciones')
+          .select('*', { count: 'exact', head: true })
+          .eq('usuario_id', user.id)
+          .eq('leido', false);
+        setMensajesNoLeidos(count || 0);
+      } catch {
+        setMensajesNoLeidos(0);
+      }
+    };
+    cargarNoLeidos();
+  }, [user?.id]);
 
   return (
     <div className="hidden lg:flex w-64 flex-col bg-white border-r border-gray-200 h-screen fixed left-0 top-0 overflow-y-auto z-40 p-6">
@@ -34,9 +64,9 @@ export default function Sidebar() {
             >
               <item.icon className="w-5 h-5" />
               <span className="text-sm font-medium">{item.label}</span>
-              {item.badge && (
+              {(item.badgeKey === 'mensajes' ? mensajesNoLeidos > 0 : item.badge) && (
                 <span className="ml-auto bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">
-                  {item.badge}
+                  {item.badgeKey === 'mensajes' ? mensajesNoLeidos : item.badge}
                 </span>
               )}
             </div>
@@ -47,9 +77,10 @@ export default function Sidebar() {
         <div className="relative z-10">
           <h4 className="font-bold text-sm mb-1">Conecta. Aprende. Crece.</h4>
           <p className="text-[10px] text-blue-200 mb-3">Con UCV Match</p>
-          <button className="w-full bg-white text-[#0f2a5c] text-xs font-bold py-2 rounded-lg hover:bg-gray-100 transition">
+          <button onClick={() => setIsInviteOpen(true)} className="w-full bg-white text-[#0f2a5c] text-xs font-bold py-2 rounded-lg hover:bg-gray-100 transition">
             Invitar Amigos
           </button>
+          {isInviteOpen && <InviteModal onClose={() => setIsInviteOpen(false)} />}
         </div>
         <div className="absolute bottom-0 right-0 w-32 h-32 opacity-40">
           <img src="/hero_panel_ucv.png" className="w-full h-full object-cover rounded-full" />

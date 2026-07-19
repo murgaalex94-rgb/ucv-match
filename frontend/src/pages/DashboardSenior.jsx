@@ -2,42 +2,72 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { BookOpen, Mail, Calendar, LogOut, Plus } from 'lucide-react'
+import { getSeniorStats, getSolicitudesMentoria, aceptarSolicitud, rechazarSolicitud, createOferta } from '../lib/supabaseServices'
 
 const DashboardSenior = () => {
-  const [stats, setStats] = useState({
-    activas: 3,
-    solicitudes: 2,
-    sesionesSemana: 5
-  })
-  const [solicitudes, setSolicitudes] = useState([
-    { id: 1, nombre: 'Juan Pérez', materia: 'Programación II', mensaje: 'Hola, necesito ayuda con...' },
-    { id: 2, nombre: 'Ana Rodríguez', materia: 'Estructuras de Datos', mensaje: '¿Podrías explicarme...' }
-  ])
+  const [stats, setStats] = useState({ activas: 0, solicitudes: 0, sesionesSemana: 0 })
+  const [solicitudes, setSolicitudes] = useState([])
   const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(null)
   const [showModal, setShowModal] = useState(false)
+  const [ofertaTitulo, setOfertaTitulo] = useState('')
+  const [ofertaDesc, setOfertaDesc] = useState('')
+  const [ofertaMateria, setOfertaMateria] = useState('')
+  const [ofertaLoading, setOfertaLoading] = useState(false)
+  const [ofertaMsg, setOfertaMsg] = useState('')
 
   const { logout, user } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
-    setTimeout(() => {
-      setLoading(false)
-    }, 1000)
-  }, [])
+    if (user?.id) loadData()
+  }, [user])
+
+  const loadData = async () => {
+    setLoading(true)
+    const [statsData, solicData] = await Promise.all([
+      getSeniorStats(user.id),
+      getSolicitudesMentoria(user.id)
+    ])
+    setStats(statsData)
+    setSolicitudes(solicData)
+    setLoading(false)
+  }
 
   const handleLogout = () => {
     logout()
     navigate('/login')
   }
 
-  const handleAccept = (id) => {
-    console.log('Aceptar solicitud:', id)
-    setSolicitudes(prev => prev.filter(s => s.id !== id))
+  const handleAccept = async (id) => {
+    setActionLoading(id)
+    await aceptarSolicitud(id)
+    await loadData()
+    setActionLoading(null)
   }
 
-  const handleReject = (id) => {
-    console.log('Rechazar solicitud:', id)
-    setSolicitudes(prev => prev.filter(s => s.id !== id))
+  const handleReject = async (id) => {
+    setActionLoading(id)
+    await rechazarSolicitud(id)
+    await loadData()
+    setActionLoading(null)
+  }
+
+  const handleCreateOferta = async () => {
+    if (!ofertaTitulo || !ofertaMateria) return
+    setOfertaLoading(true)
+    const { error } = await createOferta(user.id, ofertaTitulo, ofertaDesc, ofertaMateria)
+    if (error) {
+      setOfertaMsg('Error al crear oferta')
+    } else {
+      setOfertaMsg('Oferta creada exitosamente')
+      setOfertaTitulo('')
+      setOfertaDesc('')
+      setOfertaMateria('')
+      setTimeout(() => setShowModal(false), 1500)
+    }
+    setOfertaLoading(false)
+    setTimeout(() => setOfertaMsg(''), 3000)
   }
 
   return (
@@ -141,22 +171,24 @@ const DashboardSenior = () => {
                     <div key={solicitud.id} className="border border-slate-200 rounded-lg p-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="font-semibold text-slate-800">{solicitud.nombre}</h3>
+                          <h3 className="font-semibold text-slate-800">{solicitud.estudiante?.nombre_completo || 'Estudiante'}</h3>
                           <p className="text-slate-600 text-sm mt-1">{solicitud.materia}</p>
-                          <p className="text-slate-500 text-sm mt-2">{solicitud.mensaje}</p>
+                          <p className="text-slate-500 text-sm mt-2">{solicitud.descripcion || 'Sin descripción'}</p>
                         </div>
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleAccept(solicitud.id)}
-                            className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm"
+                            disabled={actionLoading === solicitud.id}
+                            className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm disabled:opacity-50"
                           >
-                            Aceptar
+                            {actionLoading === solicitud.id ? '...' : 'Aceptar'}
                           </button>
                           <button
                             onClick={() => handleReject(solicitud.id)}
-                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm"
+                            disabled={actionLoading === solicitud.id}
+                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm disabled:opacity-50"
                           >
-                            Rechazar
+                            {actionLoading === solicitud.id ? '...' : 'Rechazar'}
                           </button>
                         </div>
                       </div>
@@ -168,16 +200,39 @@ const DashboardSenior = () => {
 
             {/* Modal placeholder */}
             {showModal && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-lg p-6 max-w-md w-full">
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
+                <div className="bg-white rounded-lg p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
                   <h2 className="text-xl font-bold text-slate-800 mb-4">Crear Oferta de Mentoría</h2>
-                  <p className="text-slate-600 mb-4">Esta funcionalidad estará disponible próximamente.</p>
-                  <button
-                    onClick={() => setShowModal(false)}
-                    className="w-full bg-slate-200 text-slate-700 py-2 rounded-lg hover:bg-slate-300 transition-colors"
-                  >
-                    Cerrar
-                  </button>
+                  {ofertaMsg && (
+                    <p className={`text-sm mb-4 ${ofertaMsg.includes('Error') ? 'text-red-600' : 'text-green-600'}`}>{ofertaMsg}</p>
+                  )}
+                  <div className="space-y-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Título</label>
+                      <input type="text" value={ofertaTitulo} onChange={e => setOfertaTitulo(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ofrezco mentoría de..." />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Materia</label>
+                      <input type="text" value={ofertaMateria} onChange={e => setOfertaMateria(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ej: Programación Java" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Descripción</label>
+                      <textarea value={ofertaDesc} onChange={e => setOfertaDesc(e.target.value)} rows={3}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Describe tu oferta..." />
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowModal(false)}
+                      className="flex-1 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                      Cancelar
+                    </button>
+                    <button onClick={handleCreateOferta} disabled={ofertaLoading || !ofertaTitulo || !ofertaMateria}
+                      className="flex-1 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                      {ofertaLoading ? 'Creando...' : 'Publicar oferta'}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

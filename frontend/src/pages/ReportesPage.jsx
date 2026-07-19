@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bell, Search,
-  ChevronDown, TrendingUp, Clock, CheckCircle,
+  Search,
+  TrendingUp, Clock, CheckCircle,
   Download, Star, ArrowUp, ArrowDown
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
+import { useAuth } from '../context/AuthContext';
 
 const reports = [
   { id: 1, title: 'Reporte de Mentorías - Julio 2026', type: 'PDF', date: '15 Jul 2026', size: '2.4 MB', status: 'Generado', description: 'Resumen completo de mentorías realizadas en el mes.' },
@@ -29,6 +31,11 @@ const weeklyStats = {
 
 export default function ReportesPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userName = user?.nombre || 'Usuario';
+  const initials = user?.nombre
+    ? user.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+    : 'U';
   const [period, setPeriod] = useState('semanal');
 
   return (
@@ -41,17 +48,12 @@ export default function ReportesPage() {
             <h1 className="text-2xl font-bold text-gray-800">Reportes 📊</h1>
             <p className="text-gray-500 text-sm">Visualiza y descarga reportes detallados de tu actividad y progreso.</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 w-full md:w-auto">
             <div className="relative flex-1 md:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input type="text" placeholder="Buscar reportes..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]" />
             </div>
-            <button className="p-2 bg-gray-100 rounded-full text-gray-600 hover:bg-gray-200"><Bell className="w-5 h-5" /></button>
-            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full pl-1 pr-3 py-1 cursor-pointer">
-              <div className="w-8 h-8 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-xs font-bold">AM</div>
-              <span className="text-sm font-medium text-gray-700">Alex Murga</span>
-              <ChevronDown className="w-3 h-3 text-gray-400" />
-            </div>
+            <Header nombreUsuario={userName} initials={initials} />
           </div>
         </div>
 

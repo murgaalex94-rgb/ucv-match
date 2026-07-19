@@ -1,108 +1,164 @@
 import { createContext, useState, useEffect, useContext } from 'react'
-import axios from 'axios'
+import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
-  const [token, setToken] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // Carga el perfil del usuario desde la tabla profiles
+  const loadProfile = async (sessionUser) => {
+    try {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', sessionUser.id)
+        .single()
+
+      if (profileError) {
+        console.warn('Error fetching profile (table may not exist or RLS issue):', profileError.message)
+        // Usar datos de la sesión como fallback
+        setUser({
+          id: sessionUser.id,
+          email: sessionUser.email,
+          nombre: sessionUser.user_metadata?.nombre_completo || '',
+          rol: sessionUser.user_metadata?.rol || 'JUNIOR',
+          carrera: sessionUser.user_metadata?.carrera || '',
+          ciclo: sessionUser.user_metadata?.ciclo || null,
+          promedio: sessionUser.user_metadata?.promedio || null,
+          estilo_aprendizaje: sessionUser.user_metadata?.estilo_aprendizaje || '',
+          avatar_url: sessionUser.user_metadata?.avatar_url || null
+        })
+        return
+      }
+
+      setUser({
+        id: sessionUser.id,
+        email: sessionUser.email,
+        nombre: profile?.nombre_completo,
+        rol: profile?.rol,
+        carrera: profile?.carrera,
+        ciclo: profile?.ciclo,
+        promedio: profile?.promedio,
+        estilo_aprendizaje: profile?.estilo_aprendizaje,
+        avatar_url: profile?.avatar_url
+      })
+    } catch (error) {
+      console.error('Error loading profile:', error)
+      // Si falla el perfil, igual guardar datos básicos de la sesión
+      setUser({
+        id: sessionUser.id,
+        email: sessionUser.email,
+        nombre: sessionUser.user_metadata?.nombre_completo || '',
+        rol: sessionUser.user_metadata?.rol || 'JUNIOR',
+      })
+    }
+  }
+
   useEffect(() => {
-    const token = localStorage.getItem('ml_token')
-    if (token) {
-      setToken(token)
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-      checkAuth()
-    } else {
-      setLoading(false)
+    let profileLoaded = false
+
+    // 1. Revisar sesión existente al cargar
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          await loadProfile(session.user)
+          profileLoaded = true
+        }
+      } catch (error) {
+        console.error('Error checking initial session:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    initAuth()
+
+    // 2. Escuchar cambios de autenticación en tiempo real
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth event:', event)
+
+        if (event === 'SIGNED_IN' && session?.user) {
+          // Evitar cargar el perfil dos veces si initAuth ya lo hizo
+          if (!profileLoaded) {
+            await loadProfile(session.user)
+          }
+          profileLoaded = true
+          setLoading(false)
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null)
+          profileLoaded = false
+          setLoading(false)
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          await loadProfile(session.user)
+        }
+      }
+    )
+
+    // Cleanup: desuscribirse al desmontar
+    return () => {
+      subscription.unsubscribe()
     }
   }, [])
 
   const login = async (email, password) => {
     try {
-      const response = await axios.post('/api/auth/login', { email, password })
-      const { token, userId, nombre, email: userEmail, rol, pendingValidation } = response.data
-      
-      localStorage.setItem('ml_token', token)
-      setToken(token)
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-      
-      setUser({
-        id: userId,
-        nombre,
-        email: userEmail,
-        rol,
-        pendingValidation
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
       })
-      
+
+      if (error) throw error
+
+      // onAuthStateChange se encargará de actualizar el user
       return { success: true }
     } catch (error) {
-      return { 
-        success: false, 
-        error: error.response?.data?.message || 'Error al iniciar sesión' 
+      return {
+        success: false,
+        error: error.message || 'Error al iniciar sesión'
       }
     }
-  }
-
-  // Demo login sin backend
-  const demoLogin = (email, password) => {
-    const mockUser = {
-      id: 1,
-      nombre: 'Alex Murga',
-      email: email,
-      rol: 'JUNIOR',
-      pendingValidation: false
-    }
-    const mockToken = 'demo-token-' + Date.now()
-    
-    localStorage.setItem('ml_token', mockToken)
-    setToken(mockToken)
-    setUser(mockUser)
-    
-    return { success: true }
   }
 
   const register = async (data) => {
     try {
-      const response = await axios.post('/api/auth/register', data)
-      return { success: true, message: response.data.message }
+      const { error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            nombre_completo: data.nombre,
+            codigo_estudiante: data.codigoEstudiante,
+            rol: data.rol,
+            carrera: data.carrera,
+            ciclo: parseInt(data.ciclo),
+            promedio: parseFloat(data.promedio),
+            estilo_aprendizaje: data.estiloAprendizaje
+          }
+        }
+      })
+
+      if (error) throw error
+
+      return { success: true }
     } catch (error) {
-      return { 
-        success: false, 
-        error: error.response?.data?.message || 'Error al registrar' 
+      return {
+        success: false,
+        error: error.message || 'Error al registrar'
       }
     }
   }
 
-  const logout = () => {
-    localStorage.removeItem('ml_token')
-    setToken(null)
-    delete axios.defaults.headers.common['Authorization']
-    setUser(null)
-  }
-
-  const checkAuth = async () => {
-    try {
-      const response = await axios.get('/api/auth/me')
-      const { usuario, estudiante } = response.data
-      
-      setUser({
-        id: usuario.id,
-        nombre: usuario.nombre,
-        email: usuario.email,
-        rol: usuario.rol,
-        pendingValidation: estudiante?.esSenior && !estudiante?.seniorValidado
-      })
-    } catch (error) {
-      logout()
-    } finally {
-      setLoading(false)
-    }
+  const logout = async () => {
+    await supabase.auth.signOut()
+    // onAuthStateChange se encargará de setUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, demoLogin, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   )
