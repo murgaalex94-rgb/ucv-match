@@ -331,7 +331,7 @@ const LoginPage = () => {
 
             {/* CAPTCHA */}
             <Turnstile
-              siteKey="0x4AAAAAD5N1F3IsK41YBT4"
+              siteKey="0x4AAAAAAD5N1f3IsK41YBT4"
               onSuccess={(token) => setCaptchaToken(token)}
               className="mx-auto"
             />
