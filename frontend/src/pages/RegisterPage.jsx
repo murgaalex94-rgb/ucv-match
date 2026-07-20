@@ -133,7 +133,7 @@ const RegisterPage = () => {
       await supabase.auth.signOut()
       navigate('/login', { state: { message: 'Revisa tu correo electrónico para confirmar tu cuenta.' } })
     } catch (error) {
-      console.error('Error completo:', error)
+      console.error('Error en registro:', error.message)
       const errorMessage = error?.message || error?.error_description || JSON.stringify(error) || 'Error al registrar usuario'
       setError(errorMessage)
     } finally {

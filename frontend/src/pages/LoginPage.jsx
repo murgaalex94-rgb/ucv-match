@@ -24,7 +24,9 @@ const LoginPage = () => {
   const [resetError, setResetError] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [toast, setToast] = useState('')
+  const [confirmationMessage, setConfirmationMessage] = useState('')
   const [captchaToken, setCaptchaToken] = useState(null)
+  const [resetCaptchaToken, setResetCaptchaToken] = useState(null)
   const [geoChecked, setGeoChecked] = useState(false)
   const [geoAllowed, setGeoAllowed] = useState(true)
   
@@ -35,7 +37,11 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (location.state?.message) {
-      setToast(location.state.message)
+      if (location.state.message.includes('confirmar tu correo')) {
+        setConfirmationMessage(location.state.message)
+      } else {
+        setToast(location.state.message)
+      }
       window.history.replaceState({}, document.title)
     }
   }, [location.state])
@@ -96,12 +102,17 @@ const LoginPage = () => {
       alert('Por favor, ingresa tu correo electrónico.')
       return
     }
+    if (!resetCaptchaToken) {
+      alert('Por favor, completa el CAPTCHA.')
+      return
+    }
 
     setIsSending(true)
 
     try {
       const { data, error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: window.location.origin + '/reset-password',
+        captchaToken: resetCaptchaToken,
       })
 
       if (error) {
@@ -112,6 +123,32 @@ const LoginPage = () => {
       }
     } catch (err) {
       alert('Error inesperado: ' + (typeof err.message === 'string' ? err.message : JSON.stringify(err)))
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const handleResendConfirmation = async () => {
+    if (!email.trim()) {
+      setError('Ingresa tu correo electrónico primero.')
+      return
+    }
+    if (!captchaToken) {
+      setError('Por favor, completa el CAPTCHA.')
+      return
+    }
+    setIsSending(true)
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+        options: { captchaToken }
+      })
+      if (error) throw error
+      setConfirmationMessage('')
+      setToast('✅ Correo reenviado. Revisa tu bandeja de entrada.')
+    } catch (err) {
+      setError('Error al reenviar: ' + err.message)
     } finally {
       setIsSending(false)
     }
@@ -186,7 +223,7 @@ const LoginPage = () => {
       })
 
       if (error) {
-        console.error('Login error:', error)
+        console.error('Login error:', error.message)
         // Increment failed attempts
         const newAttempts = failedAttempts + 1
         setFailedAttempts(newAttempts)
@@ -210,7 +247,7 @@ const LoginPage = () => {
       
       navigate('/dashboard')
     } catch (err) {
-      console.error('Unexpected error:', err)
+      console.error('Unexpected error:', err.message)
       setError('Error inesperado al iniciar sesión')
     } finally {
       setIsLoading(false)
@@ -261,6 +298,20 @@ const LoginPage = () => {
 
             {error && !countdown && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+            )}
+
+            {confirmationMessage && (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
+                <p>{confirmationMessage}</p>
+                <button
+                  type="button"
+                  onClick={handleResendConfirmation}
+                  disabled={isSending}
+                  className="mt-3 w-full bg-[#0f2a5c] text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50"
+                >
+                  {isSending ? 'Enviando...' : 'Reenviar correo de confirmación'}
+                </button>
+              </div>
             )}
 
             {/* Email */}
@@ -326,7 +377,7 @@ const LoginPage = () => {
                 />
                 Recordarme
               </label>
-              <button type="button" onClick={() => { setShowResetModal(true); setResetEmail(email); setResetError('') }} className="text-sm text-[#0f2a5c] hover:underline font-medium bg-transparent border-none p-0 cursor-pointer">¿Olvidaste tu contraseña?</button>
+              <button type="button" onClick={() => { setShowResetModal(true); setResetEmail(email); setResetError(''); setResetCaptchaToken(null) }} className="text-sm text-[#0f2a5c] hover:underline font-medium bg-transparent border-none p-0 cursor-pointer">¿Olvidaste tu contraseña?</button>
             </div>
 
             {/* CAPTCHA */}
@@ -407,6 +458,13 @@ const LoginPage = () => {
                 placeholder="Ingresa tu correo electrónico"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
               />
+              <div className="flex justify-center">
+                <Turnstile
+                  siteKey="0x4AAAAAAD5N1f3IsK41YBT4"
+                  options={{ theme: 'light' }}
+                  onSuccess={(token) => setResetCaptchaToken(token)}
+                />
+              </div>
               <button
                 type="button"
                 disabled={isSending}
