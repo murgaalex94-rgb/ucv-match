@@ -539,9 +539,15 @@ export default function MensajesPage() {
   const [contactProfile, setContactProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [maxRetries] = useState(3);
-  const initChatRef = useRef(null);
+  const handleRetry = useCallback(() => {
+    if (retryCount >= maxRetries) {
+      setErrorMsg('El chat está temporalmente fuera de servicio. Por favor, recarga la página en unos segundos.');
+      return;
+    }
+    setRetryCount(c => c + 1);
+    setErrorMsg('El chat está iniciando... Por favor, espera unos segundos.');
+    initChatRef.current?.();
+  }, [retryCount, maxRetries]);
 
   useEffect(() => {
     if (!user) return;
@@ -613,9 +619,9 @@ export default function MensajesPage() {
           // Cache token with expiration (decode JWT to get exp)
           try {
             const payload = JSON.parse(atob(token.split('.')[1]));
-            const expiresAt = payload.exp * 1000; // JWT exp is in seconds
+            const expiresAt = payload.exp ? payload.exp * 1000 : Date.now() + 3600000; // JWT exp is in seconds, fallback 1 hour
             sessionStorage.setItem(storageKey, JSON.stringify({ token, expiresAt }));
-            console.log('[Stream] Cached new token, expires:', new Date(expiresAt).toISOString());
+            console.log('[Stream] Cached new token, expires:', expiresAt ? new Date(expiresAt).toISOString() : 'unknown');
           } catch (e) {
             console.warn('[Stream] Failed to cache token:', e);
           }
@@ -664,16 +670,6 @@ export default function MensajesPage() {
     };
 
     initChatRef.current = initChat;
-
-    const handleRetry = () => {
-      if (retryCount >= maxRetries) {
-        setErrorMsg('El chat está temporalmente fuera de servicio. Por favor, recarga la página en unos segundos.');
-        return;
-      }
-      setRetryCount(c => c + 1);
-      setErrorMsg('El chat está iniciando... Por favor, espera unos segundos.');
-      initChatRef.current?.();
-    };
 
     initChat();
 
