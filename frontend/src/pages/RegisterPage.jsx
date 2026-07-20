@@ -112,26 +112,30 @@ const RegisterPage = () => {
         throw new Error(verifyData.message || 'Error de verificación')
       }
 
-      const { data, error } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-        options: {
-          emailConfirm: true,
-          data: {
+      const signupRes = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          captchaToken,
+          userData: {
             nombre_completo: (form.nombres + ' ' + form.apellidos).trim(),
             codigo_estudiante: form.codigoEstudiante,
             rol: form.rol.charAt(0).toUpperCase() + form.rol.slice(1),
             carrera: form.carrera,
             ciclo: parseInt(form.ciclo),
             promedio: parseFloat(form.promedio),
-            cursos: cursosSeleccionados
-          }
-        }
+            cursos: cursosSeleccionados,
+          },
+        }),
       })
+      const signupData = await signupRes.json()
 
-      if (error) throw error
+      if (!signupRes.ok) {
+        throw new Error(signupData?.message || 'Error al registrar')
+      }
 
-      await supabase.auth.signOut()
       navigate('/login', { state: { message: 'Revisa tu correo electrónico para confirmar tu cuenta.' } })
     } catch (error) {
       console.error('Error en registro:', error.message)
