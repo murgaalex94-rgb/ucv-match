@@ -480,7 +480,7 @@ const RegisterPage = () => {
                 name="email"
                 value={form.email}
                 onChange={handleChange}
-                placeholder="Correo electrónico"
+                placeholder="correo Institucional"
                 className="w-full pl-11 pr-12 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
                 required
               />
@@ -507,6 +507,22 @@ const RegisterPage = () => {
                 {showPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
               {fieldErrors.password && <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>}
+              {form.password && (
+                <div className="mt-2 space-y-1 text-xs">
+                  {[
+                    { label: 'Al menos 8 caracteres', test: form.password.length >= 8 },
+                    { label: '1 letra mayúscula', test: /[A-Z]/.test(form.password) },
+                    { label: '1 letra minúscula', test: /[a-z]/.test(form.password) },
+                    { label: '1 número', test: /[0-9]/.test(form.password) },
+                    { label: '1 carácter especial', test: /[^A-Za-z0-9]/.test(form.password) },
+                  ].map((req) => (
+                    <div key={req.label} className="flex items-center gap-1.5">
+                      <span className={req.test ? 'text-green-500' : 'text-red-500'}>{req.test ? '✅' : '🔴'}</span>
+                      <span className={req.test ? 'text-green-700' : 'text-red-600'}>{req.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Confirmar Contraseña */}
@@ -529,6 +545,16 @@ const RegisterPage = () => {
                 {showConfirmPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
               {fieldErrors.confirmPassword && <p className="text-red-500 text-xs mt-1">{fieldErrors.confirmPassword}</p>}
+              {form.confirmPassword && (
+                <div className="mt-1 flex items-center gap-1.5 text-xs">
+                  <span className={form.password === form.confirmPassword ? 'text-green-500' : 'text-red-500'}>
+                    {form.password === form.confirmPassword ? '✅' : '🔴'}
+                  </span>
+                  <span className={form.password === form.confirmPassword ? 'text-green-700' : 'text-red-600'}>
+                    Las contraseñas{form.password === form.confirmPassword ? '' : ' no'} coinciden
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Selector de Rol */}
