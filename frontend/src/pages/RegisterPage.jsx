@@ -8,7 +8,8 @@ import Turnstile from 'react-turnstile'
 
 const RegisterPage = () => {
   const [form, setForm] = useState({
-    nombre: '',
+    nombres: '',
+    apellidos: '',
     codigoEstudiante: '',
     email: '',
     password: '',
@@ -31,6 +32,7 @@ const RegisterPage = () => {
   const [carreraOpen, setCarreraOpen] = useState(false)
   const carreraRef = useRef(null)
   const [captchaToken, setCaptchaToken] = useState(null)
+  const [captchaVerified, setCaptchaVerified] = useState(false)
 
   const navigate = useNavigate()
 
@@ -75,7 +77,8 @@ const RegisterPage = () => {
     setFieldErrors({})
     const errors = {}
 
-    if (!form.nombre.trim()) errors.nombre = 'El nombre es obligatorio'
+    if (!form.nombres.trim()) errors.nombres = 'El nombre es obligatorio'
+    if (!form.apellidos.trim()) errors.apellidos = 'Los apellidos son obligatorios'
     if (!form.codigoEstudiante.trim()) errors.codigoEstudiante = 'El código de estudiante es obligatorio'
     if (!form.email.trim()) errors.email = 'El correo es obligatorio'
     if (!form.email.trim().endsWith('@ucvvirtual.edu.pe')) errors.email = 'Solo se permiten correos institucionales @ucvvirtual.edu.pe'
@@ -103,7 +106,7 @@ const RegisterPage = () => {
           emailConfirm: true,
           captchaToken,
           data: {
-            nombre_completo: form.nombre,
+            nombre_completo: (form.nombres + ' ' + form.apellidos).trim(),
             codigo_estudiante: form.codigoEstudiante,
             rol: form.rol.charAt(0).toUpperCase() + form.rol.slice(1),
             carrera: form.carrera,
@@ -413,19 +416,34 @@ const RegisterPage = () => {
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
             )}
 
-            {/* Nombre */}
-            <div className="relative">
-              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-              <input
-                type="text"
-                name="nombre"
-                value={form.nombre}
-                onChange={handleChange}
-                placeholder="Nombre completo"
-                className="w-full pl-11 pr-12 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
-                required
-              />
-              {fieldErrors.nombre && <p className="text-red-500 text-xs mt-1">{fieldErrors.nombre}</p>}
+            {/* Nombres y Apellidos */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="relative">
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <input
+                  type="text"
+                  name="nombres"
+                  value={form.nombres}
+                  onChange={handleChange}
+                  placeholder="Nombres"
+                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                  required
+                />
+                {fieldErrors.nombres && <p className="text-red-500 text-xs mt-1">{fieldErrors.nombres}</p>}
+              </div>
+              <div className="relative">
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <input
+                  type="text"
+                  name="apellidos"
+                  value={form.apellidos}
+                  onChange={handleChange}
+                  placeholder="Apellidos"
+                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                  required
+                />
+                {fieldErrors.apellidos && <p className="text-red-500 text-xs mt-1">{fieldErrors.apellidos}</p>}
+              </div>
             </div>
 
             {/* Código de Estudiante */}
@@ -664,9 +682,9 @@ const RegisterPage = () => {
             <div className="flex justify-center">
               <Turnstile
                 sitekey="0x4AAAAAAD5N1bIeyOloQRm-EfbvEqPnGjM"
-                onVerify={(token) => setCaptchaToken(token)}
-                onError={() => setCaptchaToken(null)}
-                onExpire={() => setCaptchaToken(null)}
+                onVerify={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
+                onError={() => { setCaptchaToken(null); setCaptchaVerified(false) }}
+                onExpire={() => { setCaptchaToken(null); setCaptchaVerified(false) }}
               />
             </div>
             {fieldErrors.captcha && <p className="text-red-500 text-xs mt-1 text-center">{fieldErrors.captcha}</p>}
@@ -674,7 +692,7 @@ const RegisterPage = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={!captchaVerified || loading}
               className="w-full bg-[#0f2a5c] text-white py-3 rounded-xl font-bold hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50"
             >
               {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
