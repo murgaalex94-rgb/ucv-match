@@ -25,11 +25,12 @@ export default async function handler(req, res) {
     body: new URLSearchParams({
       secret: process.env.TURNSTILE_SECRET,
       response: captchaToken,
+      remoteip: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '',
     }),
   })
   const captchaResult = await r.json()
   if (!captchaResult.success)
-    return res.status(403).json({ success: false, message: 'CAPTCHA inválido' })
+    return res.status(403).json({ success: false, message: 'CAPTCHA inválido', errors: captchaResult['error-codes'] })
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
