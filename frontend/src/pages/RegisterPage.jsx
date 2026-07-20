@@ -679,11 +679,13 @@ const RegisterPage = () => {
             </div>
 
             {/* CAPTCHA */}
-            <Turnstile
-              siteKey="0x4AAAAAAD5N1f3IsK41YBT4"
-              onSuccess={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
-              className="mx-auto"
-            />
+            <div className="flex justify-center mb-4">
+              <Turnstile
+                siteKey="0x4AAAAAAD5N1f3IsK41YBT4"
+                theme="light"
+                onSuccess={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
+              />
+            </div>
             {fieldErrors.captcha && <p className="text-red-500 text-xs mt-1 text-center">{fieldErrors.captcha}</p>}
 
             {/* Submit Button */}
