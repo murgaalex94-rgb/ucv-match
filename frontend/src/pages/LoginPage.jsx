@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { User, Lock, Eye, EyeOff, ArrowRight, X } from 'lucide-react'
+import { User, Lock, Eye, EyeOff, ArrowRight, X, Globe } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import HelpButton from '../components/HelpButton'
 import { supabase } from '../lib/supabase'
@@ -68,7 +68,8 @@ const LoginPage = () => {
           setGeoAllowed(false)
         }
       } catch (e) {
-        console.warn('Geo check failed, allowing by default:', e)
+        console.warn('Geo check failed:', e)
+        setGeoAllowed(false)
       } finally {
         setGeoChecked(true)
       }
@@ -168,16 +169,6 @@ const LoginPage = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault()
-
-    // Geo-blocking check
-    if (!geoChecked) {
-      setError('Verificando ubicación...')
-      return
-    }
-    if (!geoAllowed) {
-      setError('El acceso está restringido a usuarios en Perú.')
-      return
-    }
 
     // Check lockout
     if (lockoutUntil > Date.now()) {
@@ -333,8 +324,8 @@ const LoginPage = () => {
                 </div>
               )}
               {!geoAllowed && geoChecked && (
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-red-500 text-xs flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-6a1 1 0 11-2 0 1 1 0 012 0zm0 2a1 1 0 11-2 0 1 1 0 012 0zm0 8a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd" /></svg>
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-blue-600 text-xs flex items-center gap-1">
+                  <Globe className="w-4 h-4" />
                   Acceso solo desde Perú
                 </div>
               )}
