@@ -680,7 +680,7 @@ const RegisterPage = () => {
 
             {/* CAPTCHA */}
             <Turnstile
-              siteKey={import.meta.env.VITE_CLOUDFLARE_SITE_KEY}
+              siteKey="0x4AAAAAD5N1F3IsK41YBT4"
               onSuccess={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
               className="mx-auto"
             />
