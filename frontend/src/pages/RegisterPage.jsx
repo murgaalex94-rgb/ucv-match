@@ -120,7 +120,13 @@ const RegisterPage = () => {
           },
         }),
       })
-      const signupData = await signupRes.json()
+      let signupData
+      try {
+        signupData = await signupRes.json()
+      } catch (jsonErr) {
+        const text = await signupRes.text()
+        throw new Error('Respuesta no JSON: ' + text.substring(0, 200) + ' | status: ' + signupRes.status)
+      }
 
       if (!signupRes.ok) {
         throw new Error(signupData?.message || 'Error al registrar')

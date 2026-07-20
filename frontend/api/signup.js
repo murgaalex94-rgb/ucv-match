@@ -52,6 +52,12 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ success: true, user: data.user })
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message || 'Error interno del servidor' })
+    return res.status(500).json({
+      success: false,
+      message: err?.message || 'Error interno del servidor',
+      errorType: typeof err,
+      errorKeys: err ? Object.getOwnPropertyNames(err) : [],
+      stack: err?.stack?.split('\n')?.slice(0, 3) || [],
+    })
   }
 }
