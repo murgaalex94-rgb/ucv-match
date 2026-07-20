@@ -679,21 +679,12 @@ const RegisterPage = () => {
             </div>
 
             {/* CAPTCHA */}
-            <div className="flex justify-center">
-              <div>
-                <Turnstile
-                  siteKey={import.meta.env.VITE_CLOUDFLARE_SITE_KEY}
-                  options={{
-                    appearance: 'always',
-                    refreshExpired: 'auto',
-                  }}
-                  onVerify={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
-                  onError={() => { setCaptchaToken(null); setCaptchaVerified(false) }}
-                  onExpire={() => { setCaptchaToken(null); setCaptchaVerified(false) }}
-                />
-                {fieldErrors.captcha && <p className="text-red-500 text-xs mt-1 text-center">{fieldErrors.captcha}</p>}
-              </div>
-            </div>
+            <Turnstile
+              siteKey={import.meta.env.VITE_CLOUDFLARE_SITE_KEY}
+              onSuccess={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
+              className="mx-auto"
+            />
+            {fieldErrors.captcha && <p className="text-red-500 text-xs mt-1 text-center">{fieldErrors.captcha}</p>}
 
             {/* Submit Button */}
             <button

@@ -330,15 +330,11 @@ const LoginPage = () => {
             </div>
 
             {/* CAPTCHA */}
-            <div className="flex justify-center">
-              <Turnstile
-                siteKey={import.meta.env.VITE_CLOUDFLARE_SITE_KEY}
-                options={{ appearance: 'always', refreshExpired: 'auto' }}
-                onVerify={(token) => setCaptchaToken(token)}
-                onError={() => setCaptchaToken(null)}
-                onExpire={() => setCaptchaToken(null)}
-              />
-            </div>
+            <Turnstile
+              siteKey={import.meta.env.VITE_CLOUDFLARE_SITE_KEY}
+              onSuccess={(token) => setCaptchaToken(token)}
+              className="mx-auto"
+            />
 
             {/* Submit Button */}
             <button
