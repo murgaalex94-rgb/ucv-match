@@ -330,11 +330,13 @@ const LoginPage = () => {
             </div>
 
             {/* CAPTCHA */}
-            <Turnstile
-              siteKey="0x4AAAAAAD5N1f3IsK41YBT4"
-              onSuccess={(token) => setCaptchaToken(token)}
-              className="mx-auto"
-            />
+            <div className="flex justify-center mb-4">
+              <Turnstile
+                siteKey="0x4AAAAAAD5N1f3IsK41YBT4"
+                options={{ theme: 'light' }}
+                onSuccess={(token) => setCaptchaToken(token)}
+              />
+            </div>
 
             {/* Submit Button */}
             <button

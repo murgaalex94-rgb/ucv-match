@@ -682,7 +682,7 @@ const RegisterPage = () => {
             <div className="flex justify-center mb-4">
               <Turnstile
                 siteKey="0x4AAAAAAD5N1f3IsK41YBT4"
-                theme="light"
+                options={{ theme: 'light' }}
                 onSuccess={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
               />
             </div>
