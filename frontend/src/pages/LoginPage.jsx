@@ -112,24 +112,15 @@ const LoginPage = () => {
     setIsSending(true)
 
     try {
-      const verifyRes = await fetch('/api/cf-verify', {
+      const recoverRes = await fetch('/api/recover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: resetCaptchaToken }),
+        body: JSON.stringify({ email: resetEmail, captchaToken: resetCaptchaToken }),
       })
-      const verifyData = await verifyRes.json()
-      if (!verifyData.success) {
-        setResetError('Error de verificación CAPTCHA. Intenta de nuevo.')
-        setIsSending(false)
-        return
-      }
+      const recoverData = await recoverRes.json()
 
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: window.location.origin + '/reset-password',
-      })
-
-      if (error) {
-        setResetError(error?.message || 'Error al enviar el correo de recuperación')
+      if (!recoverRes.ok) {
+        setResetError(recoverData?.message || 'Error al enviar el correo de recuperación')
       } else {
         setToast('✅ ¡Correo enviado! Revisa tu bandeja de entrada.')
         setTimeout(() => setShowResetModal(false), 1500)
