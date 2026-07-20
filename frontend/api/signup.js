@@ -1,5 +1,3 @@
-import { createClient } from '@supabase/supabase-js'
-
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST')
@@ -38,19 +36,27 @@ export default async function handler(req, res) {
     if (!serviceRoleKey)
       return res.status(500).json({ success: false, message: 'SUPABASE_SERVICE_ROLE_KEY no configurada' })
 
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
-
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: false,
-      user_metadata: userData,
+    const supabaseRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        email_confirm: false,
+        user_metadata: userData,
+      }),
     })
 
-    if (error)
-      return res.status(500).json({ success: false, message: error.message })
+    const supabaseData = await supabaseRes.json()
 
-    return res.status(200).json({ success: true, user: data.user })
+    if (!supabaseRes.ok)
+      return res.status(500).json({ success: false, message: supabaseData?.msg || supabaseData?.message || 'Error en Supabase Admin' })
+
+    return res.status(200).json({ success: true, user: supabaseData })
   } catch (err) {
     return res.status(500).json({
       success: false,
