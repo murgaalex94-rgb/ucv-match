@@ -507,23 +507,23 @@ const RegisterPage = () => {
                 {showPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
               {fieldErrors.password && <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>}
-              {form.password && (
-                <div className="mt-2 space-y-1 text-xs">
-                  {[
-                    { label: 'Al menos 8 caracteres', test: form.password.length >= 8 },
-                    { label: '1 letra mayúscula', test: /[A-Z]/.test(form.password) },
-                    { label: '1 letra minúscula', test: /[a-z]/.test(form.password) },
-                    { label: '1 número', test: /[0-9]/.test(form.password) },
-                    { label: '1 carácter especial', test: /[^A-Za-z0-9]/.test(form.password) },
-                  ].map((req) => (
-                    <div key={req.label} className="flex items-center gap-1.5">
-                      <span className={req.test ? 'text-green-500' : 'text-red-500'}>{req.test ? '✅' : '🔴'}</span>
-                      <span className={req.test ? 'text-green-700' : 'text-red-600'}>{req.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
+            {form.password && (
+              <div className="mt-2 space-y-1.5 text-xs">
+                {[
+                  { label: 'Al menos 8 caracteres', test: form.password.length >= 8 },
+                  { label: '1 letra mayúscula', test: /[A-Z]/.test(form.password) },
+                  { label: '1 letra minúscula', test: /[a-z]/.test(form.password) },
+                  { label: '1 número', test: /[0-9]/.test(form.password) },
+                  { label: '1 carácter especial', test: /[^A-Za-z0-9]/.test(form.password) },
+                ].map((req) => (
+                  <div key={req.label} className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${req.test ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className={req.test ? 'text-green-700' : 'text-red-600'}>{req.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Confirmar Contraseña */}
             <div className="relative">
@@ -545,17 +545,15 @@ const RegisterPage = () => {
                 {showConfirmPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
               {fieldErrors.confirmPassword && <p className="text-red-500 text-xs mt-1">{fieldErrors.confirmPassword}</p>}
-              {form.confirmPassword && (
-                <div className="mt-1 flex items-center gap-1.5 text-xs">
-                  <span className={form.password === form.confirmPassword ? 'text-green-500' : 'text-red-500'}>
-                    {form.password === form.confirmPassword ? '✅' : '🔴'}
-                  </span>
-                  <span className={form.password === form.confirmPassword ? 'text-green-700' : 'text-red-600'}>
-                    Las contraseñas{form.password === form.confirmPassword ? '' : ' no'} coinciden
-                  </span>
-                </div>
-              )}
             </div>
+            {form.confirmPassword && (
+              <div className="mt-1 flex items-center gap-2 text-xs">
+                <span className={`w-2 h-2 rounded-full ${form.password === form.confirmPassword ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className={form.password === form.confirmPassword ? 'text-green-700' : 'text-red-500'}>
+                  Las contraseñas{form.password === form.confirmPassword ? '' : ' no'} coinciden
+                </span>
+              </div>
+            )}
 
             {/* Selector de Rol */}
             <div>
