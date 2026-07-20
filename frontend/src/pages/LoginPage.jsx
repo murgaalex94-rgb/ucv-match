@@ -112,9 +112,20 @@ const LoginPage = () => {
     setIsSending(true)
 
     try {
+      const verifyRes = await fetch('/api/cf-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetCaptchaToken }),
+      })
+      const verifyData = await verifyRes.json()
+      if (!verifyData.success) {
+        setResetError('Error de verificación CAPTCHA. Intenta de nuevo.')
+        setIsSending(false)
+        return
+      }
+
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: window.location.origin + '/reset-password',
-        captchaToken: resetCaptchaToken,
       })
 
       if (error) {
