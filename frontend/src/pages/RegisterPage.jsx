@@ -81,8 +81,9 @@ const RegisterPage = () => {
     if (!form.apellidos.trim()) errors.apellidos = 'Los apellidos son obligatorios'
     if (!form.codigoEstudiante.trim()) errors.codigoEstudiante = 'El código de estudiante es obligatorio'
     if (!form.email.trim()) errors.email = 'El correo es obligatorio'
-    if (!form.email.trim().endsWith('@ucvvirtual.edu.pe')) errors.email = 'Solo se permiten correos institucionales @ucvvirtual.edu.pe'
+    if (form.email.trim() && !form.email.trim().endsWith('@ucvvirtual.edu.pe')) errors.email = 'Debes usar tu correo institucional de la UCV.'
     if (!form.password) errors.password = 'La contraseña es obligatoria'
+    if (form.password && form.password.length < 6) errors.password = 'La contraseña debe tener al menos 6 caracteres'
     if (form.password !== form.confirmPassword) errors.confirmPassword = 'Las contraseñas no coinciden'
     if (!form.rol) errors.rol = 'Selecciona un rol'
     if (!form.carrera) errors.carrera = 'Selecciona una carrera'
@@ -691,7 +692,7 @@ const RegisterPage = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={!captchaVerified || loading}
+              disabled={!captchaVerified || loading || !form.password || form.password.length < 6 || form.password !== form.confirmPassword}
               className="w-full bg-[#0f2a5c] text-white py-3 rounded-xl font-bold hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50"
             >
               {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
