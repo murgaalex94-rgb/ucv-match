@@ -100,6 +100,16 @@ const RegisterPage = () => {
     setLoading(true)
 
     try {
+      const verifyRes = await fetch('/api/cf-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: captchaToken }),
+      })
+      const verifyData = await verifyRes.json()
+      if (!verifyData.success) {
+        throw new Error(verifyData.message || 'Error de verificación')
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
