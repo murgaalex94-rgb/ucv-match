@@ -111,10 +111,8 @@ const LoginPage = () => {
     setIsSending(true)
 
     try {
-      console.log("Enviando CAPTCHA token:", captchaToken);
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: window.location.origin + '/reset-password',
-        captchaToken: captchaToken,
       })
 
       if (error) {
