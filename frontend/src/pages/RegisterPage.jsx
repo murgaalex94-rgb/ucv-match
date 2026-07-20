@@ -33,6 +33,7 @@ const RegisterPage = () => {
   const carreraRef = useRef(null)
   const [captchaToken, setCaptchaToken] = useState(null)
   const [captchaVerified, setCaptchaVerified] = useState(false)
+  const [captchaExpired, setCaptchaExpired] = useState(false)
 
   const navigate = useNavigate()
 
@@ -91,6 +92,7 @@ const RegisterPage = () => {
     if (!form.promedio) errors.promedio = 'El promedio es obligatorio'
     if (cursosSeleccionados.length === 0) errors.curso = 'Selecciona al menos un curso'
     if (!captchaToken) errors.captcha = 'Por favor, completa el CAPTCHA'
+    if (captchaExpired) errors.captcha = 'El CAPTCHA ha expirado. Por favor, haz clic en la casilla de verificación nuevamente.'
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
@@ -718,7 +720,12 @@ const RegisterPage = () => {
               <Turnstile
                 siteKey="0x4AAAAAAD5N1f3IsK41YBT4"
                 options={{ theme: 'light' }}
-                onSuccess={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
+                onSuccess={(token) => {
+                  setCaptchaToken(token);
+                  setCaptchaVerified(true);
+                  setCaptchaExpired(false);
+                  setTimeout(() => setCaptchaExpired(true), 120000);
+                }}
               />
             </div>
             {fieldErrors.captcha && <p className="text-red-500 text-xs mt-1 text-center">{fieldErrors.captcha}</p>}
@@ -726,7 +733,7 @@ const RegisterPage = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={!captchaVerified || loading || !form.password || form.password.length < 6 || form.password !== form.confirmPassword}
+              disabled={!captchaVerified || captchaExpired || loading || !form.password || form.password.length < 6 || form.password !== form.confirmPassword}
               className="w-full bg-[#0f2a5c] text-white py-3 rounded-xl font-bold hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50"
             >
               {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
