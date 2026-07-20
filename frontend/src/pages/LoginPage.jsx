@@ -5,7 +5,7 @@ import { User, Lock, Eye, EyeOff, ArrowRight, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import HelpButton from '../components/HelpButton'
 import { supabase } from '../lib/supabase'
-import Turnstile from 'react-turnstile'
+import { Turnstile } from '@marsidev/react-turnstile'
 
 
 const LoginPage = () => {
@@ -332,7 +332,8 @@ const LoginPage = () => {
             {/* CAPTCHA */}
             <div className="flex justify-center">
               <Turnstile
-                sitekey="0x4AAAAAAD5N1bIeyOloQRm-EfbvEqPnGjM"
+                siteKey={import.meta.env.VITE_CLOUDFLARE_SITE_KEY}
+                options={{ appearance: 'always', refreshExpired: 'auto' }}
                 onVerify={(token) => setCaptchaToken(token)}
                 onError={() => setCaptchaToken(null)}
                 onExpire={() => setCaptchaToken(null)}

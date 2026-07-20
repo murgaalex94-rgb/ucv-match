@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { User, CreditCard, Mail, Lock, Eye, EyeOff, ArrowRight, BookOpen, Calendar, BarChart3, Lightbulb, ChevronDown, Search, X } from 'lucide-react'
 import HelpButton from '../components/HelpButton'
 import { supabase } from '../lib/supabase'
-import Turnstile from 'react-turnstile'
+import { Turnstile } from '@marsidev/react-turnstile'
 
 const RegisterPage = () => {
   const [form, setForm] = useState({
@@ -682,9 +682,11 @@ const RegisterPage = () => {
             <div className="flex justify-center">
               <div>
                 <Turnstile
-                  sitekey={import.meta.env.VITE_CLOUDFLARE_SITE_KEY}
-                  appearance="always"
-                  refreshExpired="auto"
+                  siteKey={import.meta.env.VITE_CLOUDFLARE_SITE_KEY}
+                  options={{
+                    appearance: 'always',
+                    refreshExpired: 'auto',
+                  }}
                   onVerify={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
                   onError={() => { setCaptchaToken(null); setCaptchaVerified(false) }}
                   onExpire={() => { setCaptchaToken(null); setCaptchaVerified(false) }}
