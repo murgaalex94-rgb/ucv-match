@@ -117,7 +117,6 @@ const RegisterPage = () => {
         password: form.password,
         options: {
           emailConfirm: true,
-          captchaToken,
           data: {
             nombre_completo: (form.nombres + ' ' + form.apellidos).trim(),
             codigo_estudiante: form.codigoEstudiante,
