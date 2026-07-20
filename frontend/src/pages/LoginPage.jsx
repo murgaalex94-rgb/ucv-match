@@ -99,30 +99,33 @@ const LoginPage = () => {
 
   const handleResetPassword = async () => {
     if (!resetEmail.trim()) {
-      alert('Por favor, ingresa tu correo electrónico.')
+      setResetError('Por favor, ingresa tu correo electrónico.')
       return
     }
     if (!resetCaptchaToken) {
-      alert('Por favor, completa el CAPTCHA.')
+      setResetError('Por favor, completa el CAPTCHA.')
       return
     }
 
+    setResetError('')
     setIsSending(true)
 
     try {
       const { data, error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: window.location.origin + '/reset-password',
-        captchaToken: resetCaptchaToken,
+        options: {
+          captchaToken: resetCaptchaToken,
+        },
       })
 
       if (error) {
-        alert('Error: ' + (typeof error.message === 'string' ? error.message : JSON.stringify(error)))
+        setResetError(error?.message || 'Error al enviar el correo de recuperación')
       } else {
         setToast('✅ ¡Correo enviado! Revisa tu bandeja de entrada.')
         setTimeout(() => setShowResetModal(false), 1500)
       }
     } catch (err) {
-      alert('Error inesperado: ' + (typeof err.message === 'string' ? err.message : JSON.stringify(err)))
+      setResetError(err?.message || 'Error inesperado al enviar el correo')
     } finally {
       setIsSending(false)
     }
