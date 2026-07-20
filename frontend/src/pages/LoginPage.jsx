@@ -111,6 +111,7 @@ const LoginPage = () => {
     setIsSending(true)
 
     try {
+      console.log("Enviando CAPTCHA token:", captchaToken);
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: window.location.origin + '/reset-password',
         captchaToken: captchaToken,
@@ -453,7 +454,10 @@ const LoginPage = () => {
                 <Turnstile
                   siteKey="0x4AAAAAAD5N1f3IsK41YBT4"
                   options={{ theme: 'light' }}
-                  onSuccess={(token) => setCaptchaToken(token)}
+                  onSuccess={(token) => {
+                    console.log("Token generado en modal:", token);
+                    setCaptchaToken(token);
+                  }}
                 />
               </div>
               <button
