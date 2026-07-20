@@ -35,6 +35,12 @@ export default function ConfiguracionPage() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showGlobalLogoutModal, setShowGlobalLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [twoFAModal, setTwoFAModal] = useState({ open: false, qrCode: '', factorId: '', challengeId: '' });
+  const [verificationCode, setVerificationCode] = useState('');
+  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+  const [isEnrolling, setIsEnrolling] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [twoFAMessage, setTwoFAMessage] = useState('');
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -64,6 +70,11 @@ export default function ConfiguracionPage() {
 
         if (!displayName && authUser.user_metadata) {
           displayName = authUser.user_metadata.full_name || authUser.user_metadata.name || '';
+        }
+
+        const { data: mfaFactors } = await supabase.auth.mfa.listFactors()
+        if (mfaFactors?.all?.some(f => f.status === 'verified')) {
+          setIs2FAEnabled(true)
         }
 
         setProfileData({
@@ -475,6 +486,49 @@ export default function ConfiguracionPage() {
 
             <section className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2">
+                <Lock className="w-5 h-5 text-[#0f2a5c]" />
+                Autenticación en Dos Pasos (2FA)
+              </h3>
+              <div className="flex items-start gap-4">
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600 mb-4">Añade una capa extra de seguridad a tu cuenta usando una aplicación de autenticación como Google Authenticator o Authy.</p>
+                  <button
+                    onClick={async () => {
+                      if (is2FAEnabled) return
+                      setTwoFAMessage('')
+                      setIsEnrolling(true)
+                      try {
+                        const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' })
+                        if (error) throw error
+                        setTwoFAModal({
+                          open: true,
+                          qrCode: data.totp.qr_code,
+                          factorId: data.id,
+                          challengeId: '',
+                        })
+                        setVerificationCode('')
+                      } catch (err) {
+                        setTwoFAMessage('Error al iniciar 2FA: ' + (err.message || ''))
+                      } finally {
+                        setIsEnrolling(false)
+                      }
+                    }}
+                    disabled={is2FAEnabled || isEnrolling}
+                    className={`px-6 py-2.5 rounded-xl text-sm font-medium transition flex items-center gap-2 ${
+                      is2FAEnabled
+                        ? 'bg-green-600 text-white cursor-not-allowed'
+                        : 'bg-[#0f2a5c] text-white hover:bg-[#0f2a5c]/90'
+                    }`}
+                  >
+                    <Lock className="w-4 h-4" />
+                    {is2FAEnabled ? '2FA Activado' : isEnrolling ? 'Preparando...' : 'Activar Autenticación en Dos Pasos'}
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2">
                 <LogOut className="w-5 h-5 text-red-600" />
                 Cerrar Sesión
               </h3>
@@ -511,6 +565,72 @@ export default function ConfiguracionPage() {
                 </div>
               </div>
             </section>
+
+            {/* 2FA modal */}
+            {twoFAModal.open && (
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => { if (!isVerifying) setTwoFAModal({ ...twoFAModal, open: false }) }}>
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">Configurar 2FA</h3>
+                  <p className="text-sm text-gray-600 mb-4 text-center">Escanea este código QR con tu aplicación de autenticación (Google Authenticator, Authy, etc.)</p>
+                  <div className="flex justify-center mb-4">
+                    <img src={twoFAModal.qrCode} alt="Código QR de 2FA" className="w-48 h-48" />
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2 text-center">Luego ingresa el código de 6 dígitos generado por la aplicación:</p>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={verificationCode}
+                    onChange={e => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-center text-lg font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] mb-4"
+                  />
+                  {twoFAMessage && (
+                    <p className={`text-sm text-center mb-3 ${twoFAMessage.includes('✅') ? 'text-green-600' : 'text-red-600'}`}>{twoFAMessage}</p>
+                  )}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setTwoFAModal({ ...twoFAModal, open: false })}
+                      disabled={isVerifying}
+                      className="flex-1 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (verificationCode.length !== 6) return
+                        setTwoFAMessage('')
+                        setIsVerifying(true)
+                        try {
+                          const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({ factorId: twoFAModal.factorId })
+                          if (challengeError) throw challengeError
+                          const { error: verifyError } = await supabase.auth.mfa.verify({
+                            factorId: twoFAModal.factorId,
+                            challengeId: challengeData.id,
+                            code: verificationCode,
+                          })
+                          if (verifyError) throw verifyError
+                          setIs2FAEnabled(true)
+                          setTwoFAMessage('✅ 2FA activado correctamente')
+                          setTimeout(() => {
+                            setTwoFAModal({ open: false, qrCode: '', factorId: '', challengeId: '' })
+                            setVerificationCode('')
+                          }, 2000)
+                        } catch (err) {
+                          setTwoFAMessage('Error: ' + (err.message || 'Código inválido'))
+                        } finally {
+                          setIsVerifying(false)
+                        }
+                      }}
+                      disabled={verificationCode.length !== 6 || isVerifying}
+                      className="flex-1 bg-[#0f2a5c] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition disabled:opacity-50"
+                    >
+                      {isVerifying ? 'Verificando...' : 'Verificar y Activar'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Global Logout confirmation modal */}
             {showGlobalLogoutModal && (
