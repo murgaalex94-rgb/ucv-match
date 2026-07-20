@@ -47,7 +47,7 @@ export default function HelpButton() {
                     <Mail style={{ width: '18px', height: '18px', color: '#2563eb', flexShrink: 0 }} />
                     <div>
                       <p style={{ fontSize: '13px', fontWeight: 600, color: '#111827', margin: 0 }}>Correo electrónico</p>
-                      <p style={{ fontSize: '13px', color: '#4b5563', margin: 0 }}>soporte@ucvvirtual.edu.pe</p>
+                      <p style={{ fontSize: '13px', color: '#4b5563', margin: 0 }}>Soporteucvmatch@outlook.com</p>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: '#f8fafc', borderRadius: '10px' }}>

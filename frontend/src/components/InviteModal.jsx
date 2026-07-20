@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { X, Copy, Check } from 'lucide-react'
 
-const INVITE_LINK = 'https://ucvmatch.com/registro'
+const INVITE_LINK = 'https://ucv-match.vercel.app'
 
 export default function InviteModal({ onClose }) {
   const [copied, setCopied] = useState(false)

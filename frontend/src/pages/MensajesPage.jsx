@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StreamChat } from 'stream-chat';
 import {
@@ -20,6 +20,7 @@ import {
   Phone, Video, X, Info, Send,
   FileText, Image, Video as VideoIcon,
   Download, ExternalLink, File, Trash2, Ban, Mail, MessageSquare, Reply, Table, Monitor, Archive, Pin, Pencil, Clipboard, Smile, MoreVertical, User, BellOff,
+  Wifi, WifiOff, Clock,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
@@ -28,6 +29,26 @@ import { supabase } from '../lib/supabase';
 import EmojiPickerReact from 'emoji-picker-react';
 
 const API_KEY = import.meta.env.VITE_STREAM_API_KEY || '3mgv7c3pnrhu';
+
+// ---- Offline queue utilities ----
+const OFFLINE_QUEUE_KEY = 'mentorlink_offline_msgs';
+
+const getOfflineQueue = () => {
+  try {
+    return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+const removeFromOfflineQueue = (msgId) => {
+  try {
+    const queue = getOfflineQueue().filter(m => m.id !== msgId);
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  } catch { /* ignore */ }
+};
+
+const getPendingCount = () => getOfflineQueue().length;
 
 const getFileMetadata = (attachment) => {
   const name = attachment.title || attachment.fallback || '';
@@ -539,6 +560,10 @@ export default function MensajesPage() {
   const [contactProfile, setContactProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
+  const initChatRef = useRef(null);
+
   const handleRetry = useCallback(() => {
     if (retryCount >= maxRetries) {
       setErrorMsg('El chat está temporalmente fuera de servicio. Por favor, recarga la página en unos segundos.');
@@ -693,7 +718,7 @@ export default function MensajesPage() {
               .from('profiles')
               .select('*')
               .eq('id', otherUserId)
-              .single();
+              .maybeSingle();
             setContactProfile(data || { id: otherUserId, nombre_completo: otherMember?.user?.name });
           }
         } catch (e) {

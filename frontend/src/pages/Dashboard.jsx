@@ -31,7 +31,7 @@ export default function Dashboard() {
         if (user) {
           let perfil = null;
           for (let i = 0; i < 5; i++) {
-            const { data, error } = await supabase.from('profiles').select('nombre_completo, rol').eq('id', user.id).single();
+            const { data, error } = await supabase.from('profiles').select('nombre_completo, rol').eq('id', user.id).maybeSingle();
             if (error && error.code !== 'PGRST116') {
               console.error('Error fetching profile:', error.message);
               break;
@@ -71,12 +71,17 @@ export default function Dashboard() {
           const { data: mentoresData } = await supabase.from('profiles').select('*').eq('rol', 'Mentor').limit(3);
           if (mentoresData) setMentoresRecomendados(mentoresData);
 
-          const { count: noLeidas } = await supabase
-            .from('notificaciones')
-            .select('*', { count: 'exact', head: true })
-            .eq('usuario_id', user.id)
-            .eq('leido', false);
-          setNotificacionesNoLeidas(noLeidas || 0);
+          try {
+            const { count: noLeidas } = await supabase
+              .from('notificaciones')
+              .select('*', { count: 'exact', head: true })
+              .eq('usuario_id', user.id)
+              .eq('leido', false);
+            setNotificacionesNoLeidas(noLeidas || 0);
+          } catch {
+            // notificaciones table may not exist yet
+            setNotificacionesNoLeidas(0);
+          }
         }
       } catch (err) {
         console.error('Error loading dashboard data:', err);

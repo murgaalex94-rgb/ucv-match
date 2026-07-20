@@ -110,7 +110,7 @@ export default function MentoresPage() {
         .from('profiles')
         .select('id')
         .eq('id', authUser.id)
-        .single();
+        .maybeSingle();
       if (byId) return byId;
 
       // 2. Buscar por email (perfiles creados manualmente con IDs fijos)
@@ -119,7 +119,7 @@ export default function MentoresPage() {
           .from('profiles')
           .select('id')
           .eq('email', authUser.email)
-          .single();
+          .maybeSingle();
         if (byEmail) return byEmail;
       }
 

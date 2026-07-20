@@ -176,7 +176,7 @@ function MentoriasPage() {
         .from('profiles')
         .select('id')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (!existingProfile) {
         const { error: insertError } = await supabase

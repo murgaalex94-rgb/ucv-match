@@ -289,7 +289,7 @@ export const getUsuarioXp = async (userId) => {
     .from('usuario_xp')
     .select('*')
     .eq('usuario_id', userId)
-    .single()
+    .maybeSingle()
   return data
 }
 
@@ -384,7 +384,7 @@ export const getPreferencias = async (userId) => {
     .from('preferencias_usuario')
     .select('*')
     .eq('usuario_id', userId)
-    .single()
+    .maybeSingle()
   return data
 }
 

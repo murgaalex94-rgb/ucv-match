@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
-  User, Lock, Eye, EyeOff, Mail,
+  User, Lock, Eye, EyeOff, Mail, Settings,
   CheckCircle,
-  Camera, LogOut, AlertTriangle
+  Camera, LogOut, AlertTriangle, Trash2
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
@@ -53,7 +53,7 @@ export default function ConfiguracionPage() {
           .from('profiles')
           .select('nombre_completo, email, avatar_url, genero, biografia, fecha_nacimiento')
           .eq('id', authUser.id)
-          .single();
+          .maybeSingle();
 
         let displayName = profileRow?.nombre_completo || '';
         let displayEmail = profileRow?.email || authUser.email || '';
@@ -197,17 +197,10 @@ export default function ConfiguracionPage() {
 
     setAvatarUploading(true);
     try {
-      // Ensure the avatars bucket exists (public)
-      try {
-        await supabase.storage.createBucket('avatars', { public: true });
-      } catch (_) {
-        // Bucket already exists, ignore
-      }
-
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(fileName, file, { upsert: true });
 
@@ -229,17 +222,42 @@ export default function ConfiguracionPage() {
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('Error uploading avatar:', error);
-      if (error.message?.includes('row-level security') || error.message?.includes('violates')) {
-        setMessage(
-          'Error de permisos en Storage. Ejecuta este SQL en la consola de Supabase:\n' +
-          'CREATE POLICY "allow_insert_avatars" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = \'avatars\');'
-        );
+      if (error.message?.includes('Bucket not found')) {
+        setMessage('El bucket "avatars" no existe. Créalo en Supabase Dashboard → Storage → New Bucket (nombre: avatars, público).');
+      } else if (error.message?.includes('row-level security') || error.message?.includes('violates')) {
+        setMessage('Error de permisos en Storage. Configure las políticas de acceso en Supabase Dashboard → Storage.');
       } else {
         setMessage('Error al subir la foto: ' + (error.message || ''));
       }
     } finally {
       setAvatarUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeletePhoto = async () => {
+    if (!user || !profileData?.avatar_url) return;
+
+    try {
+      const urlParts = profileData.avatar_url.split('/avatars/');
+      if (urlParts.length > 1) {
+        const filePath = urlParts[1].split('?')[0];
+        await supabase.storage.from('avatars').remove([filePath]);
+      }
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setProfileData(prev => ({ ...prev, avatar_url: null }));
+      setMessage('Foto eliminada correctamente');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Error deleting avatar:', error);
+      setMessage('Error al eliminar la foto: ' + (error.message || ''));
     }
   };
 
@@ -259,7 +277,7 @@ export default function ConfiguracionPage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">Configuración ⚙️</h1>
+              <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><Settings className="w-6 h-6 text-[#0f2a5c]" />Configuración</h1>
               <p className="text-gray-500 text-sm mt-1">Administra tu cuenta y preferencias.</p>
             </div>
             <div className="flex items-center gap-4 w-full md:w-auto">
@@ -302,6 +320,15 @@ export default function ConfiguracionPage() {
                   >
                     <Camera className="w-3.5 h-3.5 text-gray-500" />
                   </button>
+                  {profileData?.avatar_url && (
+                    <button
+                      onClick={handleDeletePhoto}
+                      className="absolute -top-1 -right-1 w-7 h-7 bg-red-500 rounded-full shadow-md border border-red-300 flex items-center justify-center hover:bg-red-600 transition-colors"
+                      title="Eliminar foto"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-white" />
+                    </button>
+                  )}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -315,8 +342,8 @@ export default function ConfiguracionPage() {
                   <p className="text-sm text-gray-500">Usuario</p>
                 </div>
               </div>
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="w-full md:w-1/2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombres</label>
                   <input 
                     type="text" 
@@ -325,7 +352,7 @@ export default function ConfiguracionPage() {
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" 
                   />
                 </div>
-                <div className="w-full md:w-1/2">
+                <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Apellidos</label>
                   <input 
                     type="text" 
@@ -334,7 +361,7 @@ export default function ConfiguracionPage() {
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" 
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Correo electrónico</label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -366,7 +393,7 @@ export default function ConfiguracionPage() {
                     <option value="Femenino">Femenino</option>
                   </select>
                 </div>
-                <div className="md:col-span-2">
+                <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Biografía</label>
                   <textarea
                     value={formData.biografia}
@@ -376,14 +403,14 @@ export default function ConfiguracionPage() {
                     placeholder="Cuéntanos sobre ti..."
                   />
                 </div>
-              </div>
-              <div className="mt-6 flex justify-end">
-                <button 
-                  onClick={handleSaveProfile}
-                  className="bg-[#0f2a5c] text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition flex items-center gap-2"
-                >
-                  Guardar Cambios
-                </button>
+                <div className="col-span-2 flex justify-end">
+                  <button 
+                    onClick={handleSaveProfile}
+                    className="bg-[#0f2a5c] text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition flex items-center gap-2"
+                  >
+                    Guardar Cambios
+                  </button>
+                </div>
               </div>
             </section>
 
@@ -508,6 +535,7 @@ export default function ConfiguracionPage() {
             )}
 
             {/* Logout confirmation modal */}
+            {showLogoutModal && (
               <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => setShowLogoutModal(false)}>
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
                 <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>

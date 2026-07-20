@@ -14,7 +14,7 @@ export const AuthProvider = ({ children }) => {
         .from('profiles')
         .select('*')
         .eq('id', sessionUser.id)
-        .single()
+        .maybeSingle()
 
       if (profileError) {
         console.warn('Error fetching profile (table may not exist or RLS issue):', profileError.message)

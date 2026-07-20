@@ -7,3 +7,6 @@ Thumbs.db
 backend/target/
 opencode.config.json
 *.log
+
+.vercel
+.env*
