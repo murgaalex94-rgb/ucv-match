@@ -26,7 +26,6 @@ const LoginPage = () => {
   const [toast, setToast] = useState('')
   const [confirmationMessage, setConfirmationMessage] = useState('')
   const [captchaToken, setCaptchaToken] = useState(null)
-  const [resetCaptchaToken, setResetCaptchaToken] = useState(null)
   const [geoChecked, setGeoChecked] = useState(false)
   const [geoAllowed, setGeoAllowed] = useState(true)
   
@@ -102,7 +101,7 @@ const LoginPage = () => {
       setResetError('Por favor, ingresa tu correo electrónico.')
       return
     }
-    if (!resetCaptchaToken) {
+    if (!captchaToken) {
       setResetError('Por favor, completa el CAPTCHA.')
       return
     }
@@ -111,11 +110,9 @@ const LoginPage = () => {
     setIsSending(true)
 
     try {
-      const { data, error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: window.location.origin + '/reset-password',
-        options: {
-          captchaToken: resetCaptchaToken,
-        },
+        captchaToken: captchaToken,
       })
 
       if (error) {
@@ -380,7 +377,7 @@ const LoginPage = () => {
                 />
                 Recordarme
               </label>
-              <button type="button" onClick={() => { setShowResetModal(true); setResetEmail(email); setResetError(''); setResetCaptchaToken(null) }} className="text-sm text-[#0f2a5c] hover:underline font-medium bg-transparent border-none p-0 cursor-pointer">¿Olvidaste tu contraseña?</button>
+              <button type="button" onClick={() => { setShowResetModal(true); setResetEmail(email); setResetError(''); setCaptchaToken(null) }} className="text-sm text-[#0f2a5c] hover:underline font-medium bg-transparent border-none p-0 cursor-pointer">¿Olvidaste tu contraseña?</button>
             </div>
 
             {/* CAPTCHA */}
@@ -465,7 +462,7 @@ const LoginPage = () => {
                 <Turnstile
                   siteKey="0x4AAAAAAD5N1f3IsK41YBT4"
                   options={{ theme: 'light' }}
-                  onSuccess={(token) => setResetCaptchaToken(token)}
+                  onSuccess={(token) => setCaptchaToken(token)}
                 />
               </div>
               <button
