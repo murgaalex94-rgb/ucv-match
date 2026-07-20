@@ -680,14 +680,18 @@ const RegisterPage = () => {
 
             {/* CAPTCHA */}
             <div className="flex justify-center">
-              <Turnstile
-                sitekey="0x4AAAAAAD5N1bIeyOloQRm-EfbvEqPnGjM"
-                onVerify={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
-                onError={() => { setCaptchaToken(null); setCaptchaVerified(false) }}
-                onExpire={() => { setCaptchaToken(null); setCaptchaVerified(false) }}
-              />
+              <div>
+                <Turnstile
+                  sitekey="0x4AAAAAAD5N1bIeyOloQRm-EfbvEqPnGjM"
+                  appearance="always"
+                  refreshExpired="auto"
+                  onVerify={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
+                  onError={() => { setCaptchaToken(null); setCaptchaVerified(false) }}
+                  onExpire={() => { setCaptchaToken(null); setCaptchaVerified(false) }}
+                />
+                {fieldErrors.captcha && <p className="text-red-500 text-xs mt-1 text-center">{fieldErrors.captcha}</p>}
+              </div>
             </div>
-            {fieldErrors.captcha && <p className="text-red-500 text-xs mt-1 text-center">{fieldErrors.captcha}</p>}
 
             {/* Submit Button */}
             <button
