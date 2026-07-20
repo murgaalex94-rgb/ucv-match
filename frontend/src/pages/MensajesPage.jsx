@@ -296,6 +296,8 @@ const ChatHeader = ({
   setShowClearChatModal,
   setShowDeleteChatModal,
   mutedChats, setMutedChats,
+  isOnline,
+  pendingCount,
 }) => {
   const { channel } = useChatContext();
   const [showMenu, setShowMenu] = useState(false);
@@ -329,7 +331,27 @@ const ChatHeader = ({
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-800 truncate">{displayName}</p>
-          <p className="text-xs text-gray-400">En línea</p>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1 text-xs">
+              {isOnline ? (
+                <>
+                  <Wifi className="w-3 h-3 text-green-500" />
+                  <span className="text-green-600 font-medium">En línea</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-3 h-3 text-red-500" />
+                  <span className="text-red-600 font-medium">Sin conexión</span>
+                </>
+              )}
+              {pendingCount > 0 && (
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
+                  <Clock className="w-3 h-3" />
+                  {pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}
+                </span>
+              )}
+            </span>
+          </div>
         </div>
       </div>
       <div className="flex items-center gap-1">
@@ -386,6 +408,44 @@ const ChatHeader = ({
 
 const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setShowCallModal, setShowProfileModal, setShowClearChatModal, setShowDeleteChatModal, mutedChats, setMutedChats, uploadError, onBackClick }) => {
   const { channel } = useChatContext();
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const updatePending = () => setPendingCount(getOfflineQueue().length);
+    updatePending();
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncOfflineMessages();
+    };
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const syncOfflineMessages = useCallback(async () => {
+    if (!channel || !isOnline) return;
+    const queue = getOfflineQueue();
+    for (const msg of queue) {
+      try {
+        await channel.sendMessage({ text: msg.text });
+        removeFromOfflineQueue(msg.id);
+      } catch (e) {
+        console.error('Sync failed for:', msg.id, e);
+        break;
+      }
+    }
+    setPendingCount(getPendingCount());
+  }, [channel, isOnline]);
+
+  useEffect(() => {
+    if (isOnline) syncOfflineMessages();
+  }, [isOnline, syncOfflineMessages]);
 
   if (!channel) {
     return (
@@ -412,6 +472,8 @@ const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setS
             setShowDeleteChatModal={setShowDeleteChatModal}
             mutedChats={mutedChats}
             setMutedChats={setMutedChats}
+            isOnline={isOnline}
+            pendingCount={pendingCount}
           />
           <MessageList />
           {chatBlocked && (
