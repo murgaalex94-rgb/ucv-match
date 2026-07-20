@@ -682,7 +682,7 @@ const RegisterPage = () => {
             <div className="flex justify-center">
               <div>
                 <Turnstile
-                  sitekey="0x4AAAAAAD5N1bIeyOloQRm-EfbvEqPnGjM"
+                  sitekey={import.meta.env.VITE_CLOUDFLARE_SITE_KEY}
                   appearance="always"
                   refreshExpired="auto"
                   onVerify={(token) => { setCaptchaToken(token); setCaptchaVerified(true) }}
