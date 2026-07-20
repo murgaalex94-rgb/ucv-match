@@ -38,7 +38,6 @@ export default async function handler(req, res) {
     if (!serviceRoleKey)
       return res.status(500).json({ success: false, message: 'SUPABASE_SERVICE_ROLE_KEY no configurada' })
 
-    const { createClient } = await import('@supabase/supabase-js')
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
 
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
