@@ -34,9 +34,6 @@ const RegisterPage = () => {
   const [captchaToken, setCaptchaToken] = useState(null)
   const [captchaVerified, setCaptchaVerified] = useState(false)
   const [captchaExpired, setCaptchaExpired] = useState(false)
-  const [unconfirmedModal, setUnconfirmedModal] = useState(false)
-  const [modalLoading, setModalLoading] = useState(false)
-  const [modalMessage, setModalMessage] = useState('')
 
   const navigate = useNavigate()
 
@@ -146,50 +143,18 @@ const RegisterPage = () => {
             password: form.password,
           })
           if (signInError && (signInError.message || '').toLowerCase().includes('email not confirmed')) {
-            setUnconfirmedModal(true)
+            await supabase.auth.resend({ type: 'signup', email: form.email })
+            navigate('/login', { state: { message: 'Ya habías creado una cuenta. Te reenviamos el correo de confirmación. Revisa tu bandeja de entrada.' } })
             return
           }
         } catch (_) {}
-        setError('Ya existe una cuenta con este correo. <a href="/login" class="underline font-semibold">Inicia sesión</a> o usa "¿Olvidaste tu contraseña?" para recuperarla.')
+        setError('Ya existe una cuenta con este correo. Inicia sesión o usa "¿Olvidaste tu contraseña?" para recuperarla.')
       } else {
         const errorMessage = error?.message || error?.error_description || JSON.stringify(error) || 'Error al registrar usuario'
         setError(errorMessage)
       }
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleResendConfirm = async () => {
-    setModalLoading(true)
-    setModalMessage('')
-    try {
-      const { error } = await supabase.auth.resend({ type: 'signup', email: form.email })
-      if (error) throw error
-      setModalMessage('Correo de confirmación reenviado. Revisa tu bandeja de entrada.')
-    } catch (err) {
-      setModalMessage(err?.message || 'Error al reenviar el correo.')
-    } finally {
-      setModalLoading(false)
-    }
-  }
-
-  const handleDeleteUnconfirmed = async () => {
-    setModalLoading(true)
-    setModalMessage('')
-    try {
-      const res = await fetch('/api/delete-unconfirmed-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.message || 'Error al eliminar la cuenta')
-      setModalMessage('Cuenta pendiente eliminada. Ahora puedes volver a registrarte con el mismo correo.')
-    } catch (err) {
-      setModalMessage(err?.message || 'Error al eliminar la cuenta pendiente.')
-    } finally {
-      setModalLoading(false)
     }
   }
 
@@ -814,52 +779,6 @@ const RegisterPage = () => {
               {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
             </button>
           </form>
-
-          {/* Modal cuenta no confirmada */}
-          {unconfirmedModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
-                <h3 className="text-lg font-bold text-[#0f2a5c] mb-2">Cuenta pendiente de confirmación</h3>
-                <p className="text-sm text-gray-600 mb-5">
-                  Ya existe una cuenta con este correo electrónico pero aún no ha sido confirmada.
-                  ¿Qué deseas hacer?
-                </p>
-
-                {modalMessage && (
-                  <div className={`text-sm px-4 py-3 rounded-lg mb-4 ${modalMessage.includes('Error') || modalMessage.includes('error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-                    {modalMessage}
-                  </div>
-                )}
-
-                <div className="flex flex-col gap-3">
-                  <button
-                    type="button"
-                    onClick={handleResendConfirm}
-                    disabled={modalLoading}
-                    className="w-full bg-[#0f2a5c] text-white py-3 rounded-xl font-semibold text-sm hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50"
-                  >
-                    {modalLoading ? 'Procesando...' : 'Reenviar correo de confirmación'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeleteUnconfirmed}
-                    disabled={modalLoading}
-                    className="w-full bg-red-600 text-white py-3 rounded-xl font-semibold text-sm hover:bg-red-700 transition-colors disabled:opacity-50"
-                  >
-                    {modalLoading ? 'Procesando...' : 'Eliminar cuenta pendiente y volver a registrarme'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUnconfirmedModal(false)}
-                    disabled={modalLoading}
-                    className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-colors disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Footer */}
           <p className="text-center text-sm text-slate-500 mt-10">
