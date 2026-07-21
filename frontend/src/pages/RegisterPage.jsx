@@ -138,13 +138,13 @@ const RegisterPage = () => {
     } catch (error) {
       console.error('Error en registro:', error.message)
       const msg = (error?.message || '').toLowerCase()
-      if (msg.includes('already registered') || msg.includes('already been registered')) {
+      if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('duplicate key') || msg.includes('unique constraint')) {
         try {
           setError('Eliminando cuenta pendiente, espera...')
           const delRes = await fetch('/api/delete-unconfirmed-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: form.email }),
+            body: JSON.stringify({ email: form.email, codigoEstudiante: form.codigoEstudiante }),
           })
           const delData = await delRes.json()
           if (delRes.ok) {

@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     } catch {
       return res.status(400).json({ success: false, message: 'Invalid JSON' })
     }
-    const { email } = parsed
+    const { email, codigoEstudiante } = parsed
     if (!email)
       return res.status(400).json({ success: false, message: 'Email requerido' })
 
@@ -37,6 +37,26 @@ export default async function handler(req, res) {
     if (user.email_confirmed_at || user.confirmed_at)
       return res.status(400).json({ success: false, message: 'La cuenta ya está confirmada. No se puede eliminar.' })
 
+    const codigoEstudianteMeta = user.user_metadata?.codigo_estudiante || ''
+    const codigoToDelete = codigoEstudianteMeta || codigoEstudiante || ''
+
+    await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+    })
+    if (codigoToDelete) {
+      await fetch(`${supabaseUrl}/rest/v1/profiles?codigo_estudiante=eq.${encodeURIComponent(codigoToDelete)}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
+        },
+      })
+    }
+
     const deleteRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user.id}`, {
       method: 'DELETE',
       headers: {
@@ -49,14 +69,6 @@ export default async function handler(req, res) {
       const text = await deleteRes.text()
       return res.status(500).json({ success: false, message: text || 'Error al eliminar usuario' })
     }
-
-    await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`, {
-      method: 'DELETE',
-      headers: {
-        'apikey': serviceRoleKey,
-        'Authorization': `Bearer ${serviceRoleKey}`,
-      },
-    })
 
     return res.status(200).json({ success: true, message: 'Usuario eliminado correctamente' })
   } catch (err) {
