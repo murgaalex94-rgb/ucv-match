@@ -788,7 +788,7 @@ const RegisterPage = () => {
               disabled={!captchaVerified || captchaExpired || loading || !form.password || form.password.length < 8 || form.password !== form.confirmPassword || !emailValid}
               className="w-full bg-[#0f2a5c] text-white py-3 rounded-xl font-bold hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50"
             >
-              {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
+              {loading ? 'Creando cuenta...' : deleteMessage ? 'Registrar de nuevo' : 'Crear Cuenta'}
             </button>
           </form>
 
