@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     const findData = await findRes.json()
     const rows = Array.isArray(findData) ? findData : []
     if (rows.length === 0)
-      return res.status(404).json({ success: false, message: 'Usuario no encontrado' })
+      return res.status(404).json({ success: false, message: 'No se encontró ninguna cuenta con ese correo' })
 
     const userId = rows[0].id
 
