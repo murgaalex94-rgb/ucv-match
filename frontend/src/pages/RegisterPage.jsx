@@ -34,6 +34,9 @@ const RegisterPage = () => {
   const [captchaToken, setCaptchaToken] = useState(null)
   const [captchaVerified, setCaptchaVerified] = useState(false)
   const [captchaExpired, setCaptchaExpired] = useState(false)
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false)
+  const [resendMessage, setResendMessage] = useState('')
+  const [resendLoading, setResendLoading] = useState(false)
 
   const navigate = useNavigate()
 
@@ -76,6 +79,8 @@ const RegisterPage = () => {
     e.preventDefault()
     setError('')
     setFieldErrors({})
+    setAlreadyRegistered(false)
+    setResendMessage('')
     const errors = {}
 
     if (!form.nombres.trim()) errors.nombres = 'El nombre es obligatorio'
@@ -137,24 +142,28 @@ const RegisterPage = () => {
       console.error('Error en registro:', error.message)
       const msg = (error?.message || '').toLowerCase()
       if (msg.includes('already registered') || msg.includes('already been registered')) {
-        try {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: form.email,
-            password: form.password,
-          })
-          if (signInError && (signInError.message || '').toLowerCase().includes('email not confirmed')) {
-            await supabase.auth.resend({ type: 'signup', email: form.email })
-            navigate('/login', { state: { message: 'Ya habías creado una cuenta. Te reenviamos el correo de confirmación. Revisa tu bandeja de entrada.' } })
-            return
-          }
-        } catch (_) {}
-        setError('Ya existe una cuenta con este correo. Inicia sesión o usa "¿Olvidaste tu contraseña?" para recuperarla.')
+        setAlreadyRegistered(true)
+        setError('')
       } else {
         const errorMessage = error?.message || error?.error_description || JSON.stringify(error) || 'Error al registrar usuario'
         setError(errorMessage)
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    setResendLoading(true)
+    setResendMessage('')
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email: form.email })
+      if (error) throw error
+      setResendMessage('Correo reenviado. Revisa tu bandeja de entrada.')
+    } catch (err) {
+      setResendMessage('Error al reenviar: ' + (err?.message || 'intenta de nuevo'))
+    } finally {
+      setResendLoading(false)
     }
   }
 
@@ -446,6 +455,26 @@ const RegisterPage = () => {
           <form onSubmit={handleRegister} className="space-y-4">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+            )}
+            {alreadyRegistered && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                <p className="text-blue-800 text-sm">
+                  Ya existe una cuenta con este correo, pero no está confirmada. Revisa tu bandeja de entrada y haz clic en el enlace de confirmación. Si no lo encuentras, solicita un reenvío.
+                </p>
+                {resendMessage && (
+                  <div className={`text-sm px-3 py-2 rounded ${resendMessage.includes('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+                    {resendMessage}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={resendLoading}
+                  className="bg-[#0f2a5c] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50"
+                >
+                  {resendLoading ? 'Reenviando...' : 'Reenviar correo de confirmación'}
+                </button>
+              </div>
             )}
 
             {/* Nombres y Apellidos */}
