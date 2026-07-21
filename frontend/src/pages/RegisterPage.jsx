@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { User, CreditCard, Mail, Lock, Eye, EyeOff, ArrowRight, BookOpen, Calendar, BarChart3, Lightbulb, ChevronDown, Search, X } from 'lucide-react'
+import { User, CreditCard, Mail, Lock, Eye, EyeOff, ArrowRight, BookOpen, Calendar, BarChart3, Lightbulb, ChevronDown, Search, X, CheckCircle, XCircle } from 'lucide-react'
 import HelpButton from '../components/HelpButton'
 import { supabase } from '../lib/supabase'
 import { Turnstile } from '@marsidev/react-turnstile'
@@ -385,10 +385,14 @@ const RegisterPage = () => {
     },
   }
 
-  const cycleCourses = mallasCurriculares[form.carrera]?.[form.ciclo] || []
+  const carreraMalla = mallasCurriculares[form.carrera]
+  const cycleCourses = form.rol === 'mentor' && carreraMalla
+    ? Object.values(carreraMalla).flat()
+    : carreraMalla?.[form.ciclo] || []
   const availableCourses = cycleCourses.filter(
     (c) => !cursosSeleccionados.includes(c) && c.toLowerCase().includes(cursoSearch.toLowerCase())
   )
+  const emailValid = form.email.length > 0 && form.email.endsWith('@ucvvirtual.edu.pe')
 
   return (
     <>
@@ -482,10 +486,31 @@ const RegisterPage = () => {
                 value={form.email}
                 onChange={handleChange}
                 placeholder="correo Institucional"
-                className="w-full pl-11 pr-12 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                className={`w-full pl-11 pr-12 py-3 border rounded-xl text-sm focus:ring-2 outline-none transition-all ${
+                  form.email && !emailValid
+                    ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                    : emailValid
+                      ? 'border-green-300 focus:ring-green-200 focus:border-green-500'
+                      : 'border-gray-200 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c]'
+                }`}
                 required
               />
-              {fieldErrors.email && <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>}
+              {form.email.length > 0 && (
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  {emailValid ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <span className="text-green-600 text-xs font-medium">Correo institucional válido</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-red-500 text-xs">Debes usar tu correo institucional de la UCV (@ucvvirtual.edu.pe)</span>
+                    </>
+                  )}
+                </div>
+              )}
+              {fieldErrors.email && !form.email && <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>}
             </div>
 
             {/* Password */}
@@ -688,7 +713,7 @@ const RegisterPage = () => {
                   value={cursoSearch}
                   onChange={(e) => { setCursoSearch(e.target.value); setCursoOpen(true) }}
                   onFocus={() => setCursoOpen(true)}
-                  placeholder={cycleCourses.length ? "Busca y selecciona tus cursos..." : "Selecciona carrera y ciclo primero"}
+                  placeholder={cycleCourses.length ? (form.rol === 'mentor' ? "¿Qué cursos dominas para enseñar?" : "¿En qué curso necesitas ayuda?") : "Selecciona carrera y ciclo primero"}
                   className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
                   disabled={!cycleCourses.length}
                 />
@@ -732,7 +757,7 @@ const RegisterPage = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={!captchaVerified || captchaExpired || loading || !form.password || form.password.length < 6 || form.password !== form.confirmPassword}
+              disabled={!captchaVerified || captchaExpired || loading || !form.password || form.password.length < 8 || form.password !== form.confirmPassword || !emailValid}
               className="w-full bg-[#0f2a5c] text-white py-3 rounded-xl font-bold hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50"
             >
               {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
