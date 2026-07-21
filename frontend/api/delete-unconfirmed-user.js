@@ -50,6 +50,14 @@ export default async function handler(req, res) {
       return res.status(500).json({ success: false, message: text || 'Error al eliminar usuario' })
     }
 
+    await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+    })
+
     return res.status(200).json({ success: true, message: 'Usuario eliminado correctamente' })
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message || 'Error interno del servidor' })
