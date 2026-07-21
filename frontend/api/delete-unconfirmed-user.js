@@ -34,7 +34,7 @@ export default async function handler(req, res) {
       return res.status(404).json({ success: false, message: 'Usuario no encontrado' })
 
     const user = listData.users[0]
-    if (user.email_confirmed_at || user.confirmed_at)
+    if (user.email_confirmed_at)
       return res.status(400).json({ success: false, message: 'La cuenta ya está confirmada. No se puede eliminar.' })
 
     const codigoEstudianteMeta = user.user_metadata?.codigo_estudiante || ''

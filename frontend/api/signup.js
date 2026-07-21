@@ -46,7 +46,6 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         email,
         password,
-        email_confirm: false,
         user_metadata: userData,
       }),
     })
