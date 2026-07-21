@@ -40,21 +40,22 @@ export default async function handler(req, res) {
     const codigoEstudianteMeta = user.user_metadata?.codigo_estudiante || ''
     const codigoToDelete = codigoEstudianteMeta || codigoEstudiante || ''
 
-    await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`, {
-      method: 'DELETE',
-      headers: {
-        'apikey': serviceRoleKey,
-        'Authorization': `Bearer ${serviceRoleKey}`,
-      },
-    })
-    if (codigoToDelete) {
-      await fetch(`${supabaseUrl}/rest/v1/profiles?codigo_estudiante=eq.${encodeURIComponent(codigoToDelete)}`, {
-        method: 'DELETE',
+    const execSql = async (query, params) => {
+      const r = await fetch(`${supabaseUrl}/pg/v1/sql`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'apikey': serviceRoleKey,
           'Authorization': `Bearer ${serviceRoleKey}`,
         },
+        body: JSON.stringify({ query, params }),
       })
+      return r
+    }
+
+    await execSql('DELETE FROM public.profiles WHERE id = $1', [user.id])
+    if (codigoToDelete) {
+      await execSql('DELETE FROM public.profiles WHERE codigo_estudiante = $1', [codigoToDelete])
     }
 
     const deleteRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user.id}`, {
