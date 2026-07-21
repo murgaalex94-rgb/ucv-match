@@ -55,6 +55,16 @@ export default async function handler(req, res) {
     if (!supabaseRes.ok)
       return res.status(500).json({ success: false, message: supabaseData?.msg || supabaseData?.message || 'Error en Supabase Admin' })
 
+    await fetch(`${supabaseUrl}/auth/v1/resend`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({ type: 'signup', email }),
+    }).catch(() => {})
+
     return res.status(200).json({ success: true, user: supabaseData })
   } catch (err) {
     return res.status(500).json({
