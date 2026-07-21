@@ -35,6 +35,7 @@ const RegisterPage = () => {
   const [captchaVerified, setCaptchaVerified] = useState(false)
   const [captchaExpired, setCaptchaExpired] = useState(false)
   const [deleteMessage, setDeleteMessage] = useState('')
+  const [captchaKey, setCaptchaKey] = useState(0)
 
   const navigate = useNavigate()
 
@@ -151,6 +152,7 @@ const RegisterPage = () => {
             setError('')
             setCaptchaToken(null)
             setCaptchaVerified(false)
+            setCaptchaKey(k => k + 1)
             setDeleteMessage('Cuenta antigua eliminada. Presiona "Crear Cuenta" para registrarte de nuevo.')
           } else {
             setError(delData?.message || 'No se pudo eliminar la cuenta pendiente.')
@@ -770,6 +772,7 @@ const RegisterPage = () => {
             {/* CAPTCHA */}
             <div className="flex justify-center mb-4">
               <Turnstile
+                key={captchaKey}
                 siteKey="0x4AAAAAAD5N1f3IsK41YBT4"
                 options={{ theme: 'light' }}
                 onSuccess={(token) => {
