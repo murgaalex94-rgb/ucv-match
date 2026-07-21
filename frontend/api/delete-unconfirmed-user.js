@@ -23,29 +23,39 @@ export default async function handler(req, res) {
     if (!serviceRoleKey)
       return res.status(500).json({ success: false, message: 'SUPABASE_SERVICE_ROLE_KEY no configurada' })
 
-    const sql = async (query, params) => {
-      const r = await fetch(`${supabaseUrl}/pg/v1/sql`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': serviceRoleKey,
-          'Authorization': `Bearer ${serviceRoleKey}`,
-        },
-        body: JSON.stringify({ query, params }),
-      })
-      return r
-    }
+    const emailLower = email.toLowerCase()
 
-    const findRes = await sql("SELECT id FROM auth.users WHERE LOWER(email) = LOWER($1)", [email])
-    const findData = await findRes.json()
-    const rows = Array.isArray(findData) ? findData : []
-    if (rows.length === 0)
+    await fetch(`${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(emailLower)}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+    })
+
+    const listRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(emailLower)}`, {
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+    })
+    const listData = await listRes.json()
+    if (!listRes.ok || !listData.users || listData.users.length === 0)
       return res.status(404).json({ success: false, message: 'No se encontró ninguna cuenta con ese correo' })
 
-    const userId = rows[0].id
+    const userId = listData.users[0].id
+    const deleteRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+    })
 
-    await sql('DELETE FROM public.profiles WHERE id = $1', [userId])
-    await sql('DELETE FROM auth.users WHERE id = $1', [userId])
+    if (!deleteRes.ok) {
+      const text = await deleteRes.text()
+      return res.status(500).json({ success: false, message: text || 'Error al eliminar usuario' })
+    }
 
     return res.status(200).json({ success: true, message: 'Usuario eliminado correctamente' })
   } catch (err) {
