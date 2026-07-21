@@ -34,9 +34,7 @@ const RegisterPage = () => {
   const [captchaToken, setCaptchaToken] = useState(null)
   const [captchaVerified, setCaptchaVerified] = useState(false)
   const [captchaExpired, setCaptchaExpired] = useState(false)
-  const [alreadyRegistered, setAlreadyRegistered] = useState(false)
-  const [resendMessage, setResendMessage] = useState('')
-  const [resendLoading, setResendLoading] = useState(false)
+  const [deleteMessage, setDeleteMessage] = useState('')
 
   const navigate = useNavigate()
 
@@ -79,8 +77,7 @@ const RegisterPage = () => {
     e.preventDefault()
     setError('')
     setFieldErrors({})
-    setAlreadyRegistered(false)
-    setResendMessage('')
+    setDeleteMessage('')
     const errors = {}
 
     if (!form.nombres.trim()) errors.nombres = 'El nombre es obligatorio'
@@ -142,28 +139,31 @@ const RegisterPage = () => {
       console.error('Error en registro:', error.message)
       const msg = (error?.message || '').toLowerCase()
       if (msg.includes('already registered') || msg.includes('already been registered')) {
-        setAlreadyRegistered(true)
-        setError('')
+        try {
+          setError('Eliminando cuenta pendiente, espera...')
+          const delRes = await fetch('/api/delete-unconfirmed-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: form.email }),
+          })
+          const delData = await delRes.json()
+          if (delRes.ok) {
+            setError('')
+            setCaptchaToken(null)
+            setCaptchaVerified(false)
+            setDeleteMessage('Cuenta antigua eliminada. Presiona "Crear Cuenta" para registrarte de nuevo.')
+          } else {
+            setError(delData?.message || 'No se pudo eliminar la cuenta pendiente.')
+          }
+        } catch (_) {
+          setError('Error al eliminar la cuenta pendiente. Intenta de nuevo o contacta a soporte.')
+        }
       } else {
         const errorMessage = error?.message || error?.error_description || JSON.stringify(error) || 'Error al registrar usuario'
         setError(errorMessage)
       }
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleResend = async () => {
-    setResendLoading(true)
-    setResendMessage('')
-    try {
-      const { error } = await supabase.auth.resend({ type: 'signup', email: form.email })
-      if (error) throw error
-      setResendMessage('Correo reenviado. Revisa tu bandeja de entrada.')
-    } catch (err) {
-      setResendMessage('Error al reenviar: ' + (err?.message || 'intenta de nuevo'))
-    } finally {
-      setResendLoading(false)
     }
   }
 
@@ -456,25 +456,8 @@ const RegisterPage = () => {
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
             )}
-            {alreadyRegistered && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                <p className="text-blue-800 text-sm">
-                  Ya existe una cuenta con este correo, pero no está confirmada. Revisa tu bandeja de entrada y haz clic en el enlace de confirmación. Si no lo encuentras, solicita un reenvío.
-                </p>
-                {resendMessage && (
-                  <div className={`text-sm px-3 py-2 rounded ${resendMessage.includes('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-                    {resendMessage}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={handleResend}
-                  disabled={resendLoading}
-                  className="bg-[#0f2a5c] text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50"
-                >
-                  {resendLoading ? 'Reenviando...' : 'Reenviar correo de confirmación'}
-                </button>
-              </div>
+            {deleteMessage && (
+              <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm font-medium">{deleteMessage}</div>
             )}
 
             {/* Nombres y Apellidos */}
