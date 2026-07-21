@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     } catch {
       return res.status(400).json({ success: false, message: 'Invalid JSON' })
     }
-    const { email, codigoEstudiante } = parsed
+    const { email } = parsed
     if (!email)
       return res.status(400).json({ success: false, message: 'Email requerido' })
 
@@ -23,22 +23,7 @@ export default async function handler(req, res) {
     if (!serviceRoleKey)
       return res.status(500).json({ success: false, message: 'SUPABASE_SERVICE_ROLE_KEY no configurada' })
 
-    const listRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(email)}`, {
-      headers: {
-        'apikey': serviceRoleKey,
-        'Authorization': `Bearer ${serviceRoleKey}`,
-      },
-    })
-    const listData = await listRes.json()
-    if (!listRes.ok || !listData.users || listData.users.length === 0)
-      return res.status(404).json({ success: false, message: 'Usuario no encontrado' })
-
-    const user = listData.users[0]
-
-    const codigoEstudianteMeta = user.user_metadata?.codigo_estudiante || ''
-    const codigoToDelete = codigoEstudianteMeta || codigoEstudiante || ''
-
-    const execSql = async (query, params) => {
+    const sql = async (query, params) => {
       const r = await fetch(`${supabaseUrl}/pg/v1/sql`, {
         method: 'POST',
         headers: {
@@ -51,23 +36,16 @@ export default async function handler(req, res) {
       return r
     }
 
-    await execSql('DELETE FROM public.profiles WHERE id = $1', [user.id])
-    if (codigoToDelete) {
-      await execSql('DELETE FROM public.profiles WHERE codigo_estudiante = $1', [codigoToDelete])
-    }
+    const findRes = await sql("SELECT id FROM auth.users WHERE LOWER(email) = LOWER($1)", [email])
+    const findData = await findRes.json()
+    const rows = Array.isArray(findData) ? findData : []
+    if (rows.length === 0)
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' })
 
-    const deleteRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user.id}`, {
-      method: 'DELETE',
-      headers: {
-        'apikey': serviceRoleKey,
-        'Authorization': `Bearer ${serviceRoleKey}`,
-      },
-    })
+    const userId = rows[0].id
 
-    if (!deleteRes.ok) {
-      const text = await deleteRes.text()
-      return res.status(500).json({ success: false, message: text || 'Error al eliminar usuario' })
-    }
+    await sql('DELETE FROM public.profiles WHERE id = $1', [userId])
+    await sql('DELETE FROM auth.users WHERE id = $1', [userId])
 
     return res.status(200).json({ success: true, message: 'Usuario eliminado correctamente' })
   } catch (err) {
