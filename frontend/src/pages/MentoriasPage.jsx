@@ -497,11 +497,31 @@ function MentoriasPage() {
       }
 
       let channelId = session.stream_chat_channel_id || session.streamChatChannelId;
-      if (!channelId) {
-        channelId = getChannelId(authUser.id, otherUserId);
+
+      // Validar y asegurar la existencia del canal en Stream Chat (recreándolo automáticamente si fue eliminado o no existe)
+      try {
+        const otherPersonName = esMentor 
+          ? (session.estudiante?.nombre_completo || 'Estudiante')
+          : (session.mentor?.nombre_completo || 'Mentor');
+          
+        const ensuredChannelId = await createOrGetStreamChannel(otherUserId, otherPersonName);
+        if (ensuredChannelId) {
+          channelId = ensuredChannelId;
+          if (!session.stream_chat_channel_id) {
+            await supabase
+              .from('mentorias')
+              .update({ stream_chat_channel_id: channelId })
+              .eq('id', session.id);
+          }
+        }
+      } catch (e) {
+        console.warn('Advertencia al asegurar existencia de canal Stream Chat:', e);
+        if (!channelId) {
+          channelId = getChannelId(authUser.id, otherUserId);
+        }
       }
 
-      // Navegar a mensajes pasando el canal en el query param
+      // Redirigir a mensajes seleccionando el canal seguro
       navigate(`/mensajes?channel=${channelId}`);
     } catch (err) {
       console.error('Error opening chat:', err);

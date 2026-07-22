@@ -20,7 +20,7 @@ import {
   Phone, Video, X, Info, Send,
   FileText, Image, Video as VideoIcon,
   Download, ExternalLink, File, Trash2, Ban, Mail, MessageSquare, Reply, Table, Monitor, Archive, Pin, Pencil, Clipboard, Smile, MoreVertical, User, BellOff,
-  Clock,
+  Clock, CheckCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
@@ -232,7 +232,24 @@ const ChannelSelector = ({ channelId, onSelect }) => {
           window.history.replaceState(null, '', '/mensajes');
         }
       } catch (err) {
-        console.error('Error selecting channel from URL:', err);
+        console.error('Error selecting channel from URL, attempting auto-creation:', err);
+        try {
+          const parts = channelId.replace('mentoria_', '').split('_');
+          if (parts.length >= 2) {
+            const newChannel = client.channel('messaging', channelId, {
+              members: [parts[0], parts[1]]
+            });
+            await newChannel.create();
+            await newChannel.watch();
+            if (isMounted) {
+              setActiveChannel(newChannel);
+              if (onSelect) onSelect();
+              window.history.replaceState(null, '', '/mensajes');
+            }
+          }
+        } catch (createErr) {
+          console.error('Error auto-creating channel in ChannelSelector:', createErr);
+        }
       }
     };
     selectChannel();
@@ -335,24 +352,44 @@ const CustomSendButton = ({ sendMessage }) => (
 
 const userProfileCache = new Map();
 
-const getParticipantData = (otherUser, cachedProfile) => {
-  const nombreUsuario = otherUser?.nombre_usuario || cachedProfile?.nombre_usuario || '';
-  const apellidoUsuario = otherUser?.apellido_usuario || cachedProfile?.apellido_usuario || '';
-  const avatarUrl = otherUser?.avatar_url || otherUser?.image || cachedProfile?.avatar_url || null;
-
+const getParticipantData = (otherUser, cachedProfile, mentoriaContext, userId) => {
   let displayName = '';
+  let avatarUrl = null;
 
-  if (nombreUsuario || apellidoUsuario) {
-    displayName = `${nombreUsuario} ${apellidoUsuario}`.trim();
+  if (mentoriaContext) {
+    const isStudent = mentoriaContext.estudiante_id === userId;
+    const otherPerson = isStudent ? mentoriaContext.mentor : mentoriaContext.estudiante;
+    if (otherPerson?.nombre_completo && otherPerson.nombre_completo !== 'Usuario' && otherPerson.nombre_completo !== 'N/A') {
+      displayName = otherPerson.nombre_completo;
+    }
+    if (otherPerson?.avatar_url) {
+      avatarUrl = otherPerson.avatar_url;
+    }
+  }
+
+  if (!displayName && cachedProfile?.nombre_completo && cachedProfile.nombre_completo !== 'Usuario') {
+    displayName = cachedProfile.nombre_completo;
+  }
+  if (!avatarUrl && cachedProfile?.avatar_url) {
+    avatarUrl = cachedProfile.avatar_url;
+  }
+
+  if (!displayName || displayName === 'N/A' || displayName === 'Usuario') {
+    const nu = otherUser?.nombre_usuario || '';
+    const au = otherUser?.apellido_usuario || '';
+    if (nu || au) {
+      displayName = `${nu} ${au}`.trim();
+    } else if (otherUser?.name && otherUser.name !== 'N/A' && otherUser.name !== 'Usuario') {
+      displayName = otherUser.name;
+    }
   }
 
   if (!displayName || displayName === 'N/A') {
-    const rawName = otherUser?.name || cachedProfile?.nombre_completo || '';
-    if (rawName && rawName !== 'N/A') {
-      displayName = rawName;
-    } else {
-      displayName = 'Usuario';
-    }
+    displayName = 'Usuario';
+  }
+
+  if (!avatarUrl) {
+    avatarUrl = otherUser?.avatar_url || otherUser?.image || null;
   }
 
   const initials = displayName
@@ -364,8 +401,8 @@ const getParticipantData = (otherUser, cachedProfile) => {
     .toUpperCase() || 'U';
 
   return {
-    nombre_usuario: nombreUsuario,
-    apellido_usuario: apellidoUsuario,
+    nombre_usuario: displayName.split(' ')[0] || '',
+    apellido_usuario: displayName.split(' ').slice(1).join(' ') || '',
     avatar_url: avatarUrl,
     displayName,
     initials,
@@ -415,7 +452,7 @@ const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel }) => {
     return () => { isMounted = false; };
   }, [otherUserId]);
 
-  const participant = getParticipantData(otherMember?.user, profile);
+  const participant = getParticipantData(otherMember?.user, profile, null, user?.id);
   const displayName = participant.displayName;
   const avatarUrl = participant.avatar_url;
   const initials = participant.initials;
@@ -465,6 +502,7 @@ const ChatHeader = ({
   setShowProfileModal,
   setShowClearChatModal,
   setShowDeleteChatModal,
+  setShowFinalizarModal,
   mutedChats, setMutedChats,
   isOnline,
   pendingCount,
@@ -535,7 +573,11 @@ const ChatHeader = ({
     const fetchMentoria = async () => {
       const { data } = await supabase
         .from('mentorias')
-        .select('estado, materia, fecha_solicitud')
+        .select(`
+          id, estado, materia, fecha_solicitud, estudiante_id, mentor_id,
+          estudiante:estudiante_id(id, nombre_completo, avatar_url),
+          mentor:mentor_id(id, nombre_completo, avatar_url)
+        `)
         .or(`and(estudiante_id.eq.${userId},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${userId},estudiante_id.eq.${otherUserId})`)
         .in('estado', ['Pendiente', 'Activa'])
         .order('fecha_solicitud', { ascending: false })
@@ -548,7 +590,7 @@ const ChatHeader = ({
 
   if (!channel) return null;
 
-  const participant = getParticipantData(otherMember?.user, profile);
+  const participant = getParticipantData(otherMember?.user, profile, mentoriaContext, userId);
   const displayName = participant.displayName;
   const avatarUrl = participant.avatar_url;
   const initials = participant.initials;
@@ -663,6 +705,14 @@ const ChatHeader = ({
               >
                 <Ban className="w-4 h-4 text-gray-400" /> {chatBlocked ? 'Desbloquear contacto' : 'Bloquear contacto'}
               </button>
+              {setShowFinalizarModal && (
+                <button
+                  onClick={() => { setShowFinalizarModal(true); setShowMenu(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 transition-colors font-medium"
+                >
+                  <CheckCircle className="w-4 h-4 text-amber-600" /> Finalizar consulta
+                </button>
+              )}
               <hr className="my-1 border-gray-100" />
               <button
                 onClick={() => { setShowDeleteChatModal(true); setShowMenu(false); }}
@@ -678,7 +728,7 @@ const ChatHeader = ({
   );
 };
 
-const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setShowCallModal, setShowProfileModal, setShowClearChatModal, setShowDeleteChatModal, mutedChats, setMutedChats, uploadError, onBackClick, esMentor, userId, mentoriaBlockedMsg }) => {
+const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setShowCallModal, setShowProfileModal, setShowClearChatModal, setShowDeleteChatModal, setShowFinalizarModal, mutedChats, setMutedChats, uploadError, onBackClick, esMentor, userId, mentoriaBlockedMsg }) => {
   const { channel } = useChatContext();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
@@ -742,6 +792,7 @@ const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setS
             setShowProfileModal={setShowProfileModal}
             setShowClearChatModal={setShowClearChatModal}
             setShowDeleteChatModal={setShowDeleteChatModal}
+            setShowFinalizarModal={setShowFinalizarModal}
             mutedChats={mutedChats}
             setMutedChats={setMutedChats}
             isOnline={isOnline}
@@ -855,6 +906,7 @@ export default function MensajesPage() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showClearChatModal, setShowClearChatModal] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
+  const [showFinalizarModal, setShowFinalizarModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [uploadError, setUploadError] = useState('');
@@ -1115,6 +1167,42 @@ export default function MensajesPage() {
       setUploadError(err?.message || 'Error al eliminar el chat');
       setTimeout(() => setUploadError(''), 5000);
       setShowDeleteChatModal(false);
+    }
+  };
+
+  const handleFinalizarConsulta = async () => {
+    try {
+      if (activeChannel && user) {
+        const members = Object.values(activeChannel.state?.members || {});
+        const otherMember = members.find(m => m.user?.id !== user.id);
+        const otherUserId = otherMember?.user?.id;
+
+        if (otherUserId) {
+          await supabase
+            .from('mentorias')
+            .update({
+              estado: 'Finalizada',
+              fecha_completada: new Date().toISOString()
+            })
+            .or(`and(estudiante_id.eq.${user.id},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${user.id},estudiante_id.eq.${otherUserId})`)
+            .in('estado', ['Pendiente', 'Activa']);
+        }
+
+        try {
+          await activeChannel.hide();
+        } catch (e) {
+          console.warn('Error hiding channel in Stream:', e);
+        }
+
+        setActiveChannel(null);
+        setChannelListRefresh(prev => prev + 1);
+        setShowFinalizarModal(false);
+      }
+    } catch (err) {
+      console.error('Error al finalizar consulta:', err);
+      setUploadError(err?.message || 'Error al finalizar consulta');
+      setTimeout(() => setUploadError(''), 5000);
+      setShowFinalizarModal(false);
     }
   };
 
@@ -1476,6 +1564,25 @@ export default function MensajesPage() {
               <button onClick={handleDeleteChat}
                 className="flex-1 px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors">
                 Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFinalizarModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowFinalizarModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-[95%] max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Finalizar consulta</h3>
+            <p className="text-sm text-gray-600 mb-6">¿Estás seguro de que quieres finalizar esta consulta?</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowFinalizarModal(false)}
+                className="flex-1 px-4 py-2 min-h-[44px] text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                Cancelar
+              </button>
+              <button onClick={handleFinalizarConsulta}
+                className="flex-1 px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors">
+                Sí, finalizar
               </button>
             </div>
           </div>
