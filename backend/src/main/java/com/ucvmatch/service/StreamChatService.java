@@ -118,7 +118,7 @@ public class StreamChatService {
             userObject.addProperty("name", fullNombre);
             userObject.addProperty("nombre_usuario", nombreUsuario != null ? nombreUsuario : "");
             userObject.addProperty("apellido_usuario", apellidoUsuario != null ? apellidoUsuario : "");
-            userObject.addProperty("role", "user");
+            userObject.addProperty("role", "admin");
             
             if (avatarUrl != null && !avatarUrl.trim().isEmpty()) {
                 userObject.addProperty("image", avatarUrl);

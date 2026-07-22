@@ -59,6 +59,12 @@ Deno.serve(async (req) => {
       Deno.env.get('STREAM_API_SECRET') ?? ''
     );
 
+    // Asegurar que el usuario tenga rol administrativo en Stream Chat para evitar errores de permisos (ReadChannel Error 17)
+    await client.upsertUser({
+      id: userId,
+      role: 'admin',
+    });
+
     const token = client.createToken(userId, Math.floor(Date.now() / 1000) + 3600);
 
     return new Response(JSON.stringify({ token }), {
