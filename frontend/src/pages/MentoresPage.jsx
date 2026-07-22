@@ -83,6 +83,7 @@ export default function MentoresPage() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [calificacion, setCalificacion] = useState('');
   const [sortBy, setSortBy] = useState('populares');
+  const [promedios, setPromedios] = useState({});
 
   const navigate = useNavigate();
 
@@ -135,6 +136,7 @@ export default function MentoresPage() {
     if (authUserId && mentores.length > 0) {
       fetchFavoritos();
       fetchMentorCapacidad();
+      fetchPromedios();
     }
   }, [authUserId, mentores.length]);
 
@@ -181,6 +183,25 @@ export default function MentoresPage() {
       setMentorActiveCounts(counts);
     } catch (err) {
       console.error('Error fetching mentor capacity:', err);
+    }
+  };
+
+  const fetchPromedios = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('calificaciones')
+        .select('mentor_id, promedio, total');
+      if (error) {
+        console.error('Error fetching promedios:', error);
+        return;
+      }
+      const map = {};
+      (data || []).forEach(item => {
+        map[item.mentor_id] = { promedio: item.promedio, total: item.total };
+      });
+      setPromedios(map);
+    } catch (err) {
+      console.error('Error fetching promedios:', err);
     }
   };
 
