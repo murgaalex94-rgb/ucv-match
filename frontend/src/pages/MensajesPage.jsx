@@ -246,8 +246,15 @@ const ChannelSelector = ({ channelId, onSelect }) => {
           }
           if (isMounted) {
             setActiveChannel(ch);
-            // Dar tiempo para que el canal sea queryable antes de refrescar la lista
-            await new Promise(r => setTimeout(r, 300));
+            // Forzar actualización del ChannelList ejecutando queryChannels nuevamente
+            try {
+              await client.queryChannels({
+                type: 'messaging',
+                members: { $in: [client.userID] },
+              });
+            } catch (refreshErr) {
+              console.warn('Error refrescando ChannelList:', refreshErr);
+            }
             if (onSelect) onSelect();
           }
           return;
@@ -258,8 +265,15 @@ const ChannelSelector = ({ channelId, onSelect }) => {
         await channel.watch();
         if (isMounted) {
           setActiveChannel(channel);
-          // Dar tiempo para que el canal sea queryable antes de refrescar la lista
-          await new Promise(r => setTimeout(r, 300));
+          // Forzar actualización del ChannelList ejecutando queryChannels nuevamente
+          try {
+            await client.queryChannels({
+              type: 'messaging',
+              members: { $in: [client.userID] },
+            });
+          } catch (refreshErr) {
+            console.warn('Error refrescando ChannelList:', refreshErr);
+          }
           if (onSelect) onSelect();
         }
       } catch (err) {
@@ -270,6 +284,15 @@ const ChannelSelector = ({ channelId, onSelect }) => {
           await channel.watch();
           if (isMounted) {
             setActiveChannel(channel);
+            // Forzar actualización del ChannelList ejecutando queryChannels nuevamente
+            try {
+              await client.queryChannels({
+                type: 'messaging',
+                members: { $in: [client.userID] },
+              });
+            } catch (refreshErr) {
+              console.warn('Error refrescando ChannelList:', refreshErr);
+            }
             if (onSelect) onSelect();
           }
         } catch (e) {
