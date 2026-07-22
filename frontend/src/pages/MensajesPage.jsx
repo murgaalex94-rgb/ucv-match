@@ -1282,13 +1282,33 @@ export default function MensajesPage() {
 
   const handleDeleteChat = async () => {
     try {
-      if (activeChannel) {
+      if (activeChannel && user) {
+        // Paso 1: Eliminar/ocultar el canal en StreamChat
         try {
           await activeChannel.delete();
         } catch {
           await activeChannel.hide();
         }
+
+        // Paso 2: Actualizar la tabla mentorias en Supabase
+        const members = Object.values(activeChannel.state?.members || {});
+        const otherMember = members.find(m => m.user?.id !== user.id);
+        const otherUserId = otherMember?.user?.id;
+
+        if (otherUserId) {
+          await supabase
+            .from('mentorias')
+            .update({
+              estado: 'Cancelada',
+              stream_chat_channel_id: null,
+            })
+            .or(`and(estudiante_id.eq.${user.id},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${user.id},estudiante_id.eq.${otherUserId})`)
+            .in('estado', ['Pendiente', 'Activa']);
+        }
+
+        // Paso 3: Actualizar estado local del Sidebar
         setActiveChannel(null);
+        setChannelListRefresh(prev => prev + 1);
         setShowDeleteChatModal(false);
       }
     } catch (err) {
