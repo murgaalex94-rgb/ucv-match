@@ -215,78 +215,6 @@ const FilePreviewModal = ({ file, fileType, onSend, onClose }) => {
 
 
 
-const CustomChannelList = ({ filters, sort, options, Preview, activeChannel, setActiveChannel, refreshTrigger }) => {
-  const { client } = useChatContext();
-  const [channels, setChannels] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const loadChannels = useCallback(async () => {
-    if (!client) return;
-    setLoading(true);
-    try {
-      const result = await client.queryChannels(filters, sort, options);
-      if (result) {
-        setChannels(result);
-      }
-    } catch (err) {
-      console.error('Error loading channels:', err);
-      setChannels([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [client, filters, sort, options]);
-
-  useEffect(() => {
-    loadChannels();
-  }, [loadChannels, refreshTrigger]);
-
-  // Escuchar eventos de nuevos canales o actualizaciones
-  useEffect(() => {
-    if (!client) return;
-    const handleChannelEvent = () => {
-      loadChannels();
-    };
-    client.on('channel.created', handleChannelEvent);
-    client.on('channel.updated', handleChannelEvent);
-    client.on('message.new', handleChannelEvent);
-    return () => {
-      client.off('channel.created', handleChannelEvent);
-      client.off('channel.updated', handleChannelEvent);
-      client.off('message.new', handleChannelEvent);
-    };
-  }, [client, loadChannels]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="w-6 h-6 border-2 border-[#0f2a5c] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (channels.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-        <MessageSquare className="w-12 h-12 text-gray-300 mb-3" />
-        <p className="text-sm text-gray-400">Aún no hay conversaciones</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col">
-      {channels.map((channel) => (
-        <Preview
-          key={channel.cid}
-          channel={channel}
-          activeChannel={activeChannel}
-          setActiveChannel={setActiveChannel}
-        />
-      ))}
-    </div>
-  );
-};
-
 const ChannelSelector = ({ channelId, onSelect }) => {
   const { setActiveChannel, client } = useChatContext();
 
@@ -297,52 +225,18 @@ const ChannelSelector = ({ channelId, onSelect }) => {
     const selectChannel = async () => {
       try {
         const cleanId = channelId.includes(':') ? channelId.split(':')[1] : channelId;
-
-        // 1. Buscar si el canal existe en las conversaciones cargadas del cliente
-        let existingChannels = [];
-        try {
-          existingChannels = await client.queryChannels({
-            type: 'messaging',
-            id: cleanId,
-            members: { $in: [client.userID] },
-          });
-        } catch (queryErr) {
-          console.warn('Advertencia en queryChannels con filtro de miembros:', queryErr);
-        }
-
-        if (existingChannels && existingChannels.length > 0) {
-          const ch = existingChannels[0];
-          // Asegurar que el canal tiene su state con miembros cargados
-          if (!ch.state?.members || Object.keys(ch.state.members).length === 0) {
-            await ch.watch();
-          }
-          if (isMounted) {
-            setActiveChannel(ch);
-            if (onSelect) onSelect();
-          }
-          return;
-        }
-
-        // 2. Si no se encuentra en queryChannels, instanciar el canal por ID, hacer watch() y activarlo
+        
+        // Instanciar el canal por ID y hacer watch()
+        // El ChannelList oficial detectará automáticamente este canal
         const channel = client.channel('messaging', cleanId);
         await channel.watch();
+        
         if (isMounted) {
           setActiveChannel(channel);
           if (onSelect) onSelect();
         }
       } catch (err) {
         console.error('Error seleccionando canal desde la URL:', err);
-        try {
-          const cleanId = channelId.includes(':') ? channelId.split(':')[1] : channelId;
-          const channel = client.channel('messaging', cleanId);
-          await channel.watch();
-          if (isMounted) {
-            setActiveChannel(channel);
-            if (onSelect) onSelect();
-          }
-        } catch (e) {
-          console.error('Error final en selección de canal:', e);
-        }
       }
     };
 
@@ -1059,33 +953,8 @@ export default function MensajesPage() {
   const maxRetries = 3;
   const initChatRef = useRef(null);
   const [mentoriaBlockedMsg, setMentoriaBlockedMsg] = useState('');
-  // Trigger para refrescar ChannelList cuando se crea un canal nuevo
-  const [channelListRefresh, setChannelListRefresh] = useState(0);
-
-  const handleChannelSelectedFromUrl = useCallback(() => {
-    setChannelListRefresh(prev => prev + 1);
-  }, []);
 
   const esMentor = user?.rol === 'Mentor' || user?.user_metadata?.rol === 'Mentor';
-
-  // Refrescar ChannelList cuando se navega con un channelId nuevo (canal recién creado)
-  useEffect(() => {
-    if (channelFromUrl && chatClient) {
-      setChannelListRefresh(prev => prev + 1);
-    }
-  }, [channelFromUrl, chatClient]);
-
-  // Refrescar ChannelList cuando activeChannel cambia y viene de la URL
-  // Esto asegura que el canal seleccionado aparezca en la lista lateral
-  useEffect(() => {
-    if (activeChannel && channelFromUrl) {
-      // Esperar un poco para que el canal esté completamente cargado en el cliente
-      const timer = setTimeout(() => {
-        setChannelListRefresh(prev => prev + 1);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [activeChannel?.cid, channelFromUrl]);
 
   useEffect(() => {
     if (!activeChannel || !user) return;
@@ -1308,7 +1177,6 @@ export default function MensajesPage() {
 
         // Paso 3: Actualizar estado local del Sidebar
         setActiveChannel(null);
-        setChannelListRefresh(prev => prev + 1);
         setShowDeleteChatModal(false);
       }
     } catch (err) {
@@ -1344,7 +1212,6 @@ export default function MensajesPage() {
         }
 
         setActiveChannel(null);
-        setChannelListRefresh(prev => prev + 1);
         setShowFinalizarModal(false);
       }
     } catch (err) {
@@ -1506,14 +1373,11 @@ export default function MensajesPage() {
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto">
-                <CustomChannelList
+                <ChannelList
                   filters={{ type: 'messaging', members: { $in: [user.id] } }}
                   sort={{ updated_at: -1, last_message_at: -1 }}
                   options={{ limit: 50, state: true, watch: true }}
                   Preview={CustomChannelPreview}
-                  activeChannel={activeChannel}
-                  setActiveChannel={setActiveChannel}
-                  refreshTrigger={channelListRefresh}
                 />
               </div>
             </div>
