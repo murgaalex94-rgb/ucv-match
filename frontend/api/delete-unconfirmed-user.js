@@ -25,13 +25,17 @@ export default async function handler(req, res) {
 
     const emailLower = email.toLowerCase()
 
-    await fetch(`${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(emailLower)}`, {
-      method: 'DELETE',
+    const api = async (url, opts = {}) => fetch(url, {
+      ...opts,
       headers: {
+        'Content-Type': 'application/json',
         'apikey': serviceRoleKey,
         'Authorization': `Bearer ${serviceRoleKey}`,
+        ...opts.headers,
       },
     })
+
+    await api(`${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(emailLower)}`, { method: 'DELETE' })
 
     const listRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(emailLower)}`, {
       headers: {

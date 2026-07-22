@@ -2,8 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  Search, Star, Clock, User, ChevronDown, 
-  X, Send, Heart, RefreshCw, ChevronLeft, ChevronRight
+  Search, Clock, User, ChevronDown, 
+  X, Send, Heart, RefreshCw, Hand
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
@@ -62,10 +62,7 @@ const ITEMS_PER_PAGE = 6;
 
 export default function MentoresPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [favoritos, setFavoritos] = useState(new Set());
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
-  const [calificacion, setCalificacion] = useState('');
-  const [sortBy, setSortBy] = useState('populares');
   const [openDropdown, setOpenDropdown] = useState('');
   const [facultad, setFacultad] = useState('');
   const [carrera, setCarrera] = useState('');
@@ -74,25 +71,161 @@ export default function MentoresPage() {
   const [mentores, setMentores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [favoritos, setFavoritos] = useState(new Set());
+  const [favoriteLoading, setFavoriteLoading] = useState(new Set());
   const [errorMsg, setErrorMsg] = useState('');
   const [userName, setUserName] = useState('');
   const [userInitials, setUserInitials] = useState('U');
+  const [userRol, setUserRol] = useState('');
+  const [authUserId, setAuthUserId] = useState(null);
+  const [userCarrera, setUserCarrera] = useState('');
+  const [mentorActiveCounts, setMentorActiveCounts] = useState({});
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   const navigate = useNavigate();
 
   useEffect(() => {
     const init = async () => {
       await ensureProfileExists();
-      await fetchMentores();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
         const name = authUser.user_metadata?.nombre_completo || authUser.email?.split('@')[0] || '';
+        const rol = authUser.user_metadata?.rol || '';
         setUserName(name);
         setUserInitials(name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U');
+        setUserRol(rol);
+        setAuthUserId(authUser.id);
+
+        // Obtener carrera del usuario logueado
+        const { data: perfil } = await supabase
+          .from('profiles')
+          .select('carrera')
+          .eq('id', authUser.id)
+          .maybeSingle();
+        if (perfil?.carrera) setUserCarrera(perfil.carrera);
       }
+      await fetchMentores();
     };
     init();
+
+    const subscription = supabase
+      .channel('profiles-mentores')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles', filter: 'rol=eq.Mentor' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            if (payload.new.id !== authUserId) setMentores(prev => [...prev, payload.new]);
+          } else if (payload.eventType === 'UPDATE') {
+            setMentores(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
+          } else if (payload.eventType === 'DELETE') {
+            setMentores(prev => prev.filter(m => m.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
   }, []);
+
+  useEffect(() => {
+    if (authUserId && mentores.length > 0) {
+      fetchFavoritos();
+      fetchMentorCapacidad();
+    }
+  }, [authUserId, mentores.length]);
+
+  useEffect(() => {
+    const handleClick = () => setOpenDropdown('')
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [])
+
+  const fetchFavoritos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('favoritos')
+        .select('mentor_id')
+        .eq('usuario_id', authUserId);
+      if (error) {
+        if (error.message?.includes('relation') && error.message?.includes('does not exist')) return;
+        console.error('Error fetching favorites:', error);
+        return;
+      }
+      setFavoritos(new Set(data.map(f => f.mentor_id)));
+    } catch (err) {
+      console.error('Error fetching favorites:', err);
+    }
+  };
+
+  const fetchMentorCapacidad = async () => {
+    try {
+      const mentorIds = mentores.map(m => m.id);
+      if (mentorIds.length === 0) return;
+      const { data, error } = await supabase
+        .from('mentorias')
+        .select('mentor_id, estado')
+        .in('mentor_id', mentorIds)
+        .eq('estado', 'Activa');
+      if (error) {
+        console.error('Error fetching mentor capacity:', error);
+        return;
+      }
+      const counts = {};
+      (data || []).forEach(item => {
+        counts[item.mentor_id] = (counts[item.mentor_id] || 0) + 1;
+      });
+      setMentorActiveCounts(counts);
+    } catch (err) {
+      console.error('Error fetching mentor capacity:', err);
+    }
+  };
+
+  const toggleFavorite = async (mentorId, e) => {
+    e.stopPropagation();
+    if (!authUserId) return;
+
+    setFavoriteLoading(prev => new Set(prev).add(mentorId));
+
+    try {
+      if (favoritos.has(mentorId)) {
+        const { error } = await supabase
+          .from('favoritos')
+          .delete()
+          .eq('usuario_id', authUserId)
+          .eq('mentor_id', mentorId);
+        if (error) {
+          if (error.message?.includes('relation') && error.message?.includes('does not exist')) return;
+          console.error('Error removing favorite:', error);
+          return;
+        }
+        setFavoritos(prev => {
+          const next = new Set(prev);
+          next.delete(mentorId);
+          return next;
+        });
+      } else {
+        const { error } = await supabase
+          .from('favoritos')
+          .insert({ usuario_id: authUserId, mentor_id: mentorId });
+        if (error) {
+          if (error.message?.includes('relation') && error.message?.includes('does not exist')) return;
+          console.error('Error adding favorite:', error);
+          return;
+        }
+        setFavoritos(prev => new Set(prev).add(mentorId));
+      }
+    } catch (err) {
+      console.error('Error toggling favorite:', err);
+    } finally {
+      setFavoriteLoading(prev => {
+        const next = new Set(prev);
+        next.delete(mentorId);
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     const handleClick = () => setOpenDropdown('')
@@ -105,7 +238,6 @@ export default function MentoresPage() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return null;
 
-      // 1. Buscar por ID de auth
       const { data: byId } = await supabase
         .from('profiles')
         .select('id')
@@ -113,7 +245,6 @@ export default function MentoresPage() {
         .maybeSingle();
       if (byId) return byId;
 
-      // 2. Buscar por email (perfiles creados manualmente con IDs fijos)
       if (authUser.email) {
         const { data: byEmail } = await supabase
           .from('profiles')
@@ -123,7 +254,6 @@ export default function MentoresPage() {
         if (byEmail) return byEmail;
       }
 
-      // 3. Crear nuevo perfil con el ID real de auth
       const meta = authUser.user_metadata || {};
       const { data: newProfile, error } = await supabase.from('profiles').insert({
         id: authUser.id,
@@ -150,10 +280,17 @@ export default function MentoresPage() {
 
   const fetchMentores = async () => {
     try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('rol', 'Mentor');
+        .eq('rol', 'Mentor')
+        .neq('id', authUser.id);
 
       if (error) {
         console.error('Error fetching mentors:', error);
@@ -182,36 +319,27 @@ export default function MentoresPage() {
         mentor.nombre_completo?.toLowerCase().includes(searchTerm.toLowerCase()) || 
         mentor.carrera?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchCarrera = !carrera || mentor.carrera === carrera;
-      const matchRating = !calificacion || mentor.promedio >= parseFloat(calificacion);
-      return matchSearch && matchCarrera && matchRating;
+      const prom = promedios[mentor.id] ? parseFloat(promedios[mentor.id].promedio) : (mentor.promedio ? mentor.promedio / 20 * 5 : 0);
+      const matchRating = !calificacion || prom >= parseFloat(calificacion);
+      const matchFav = !showFavoritesOnly || favoritos.has(mentor.id);
+      return matchSearch && matchCarrera && matchRating && matchFav;
     });
 
     if (sortBy === 'rating') {
-      result = [...result].sort((a, b) => b.promedio - a.promedio);
+      result = [...result].sort((a, b) => {
+        const pa = promedios[a.id] ? parseFloat(promedios[a.id].promedio) : (a.promedio ? a.promedio / 20 * 5 : 0);
+        const pb = promedios[b.id] ? parseFloat(promedios[b.id].promedio) : (b.promedio ? b.promedio / 20 * 5 : 0);
+        return pb - pa;
+      });
     }
 
     return result;
-  }, [searchTerm, carrera, calificacion, sortBy, mentores]);
+  }, [searchTerm, carrera, calificacion, sortBy, mentores, promedios, showFavoritesOnly, favoritos]);
 
   const visibleMentors = filteredMentors.slice(0, visibleCount);
-  const hasMore = visibleCount < filteredMentors.length;
-
-  const handleApplyFilters = () => {
-    setFiltersApplied(true);
-    setCurrentPage(1);
-  };
 
   const handleClearFilters = () => {
-    setSearchTerm(''); setFacultad(''); setCarrera(''); setCalificacion(''); setSortBy('populares'); setFiltersApplied(false);
-    setCurrentPage(1);
-  };
-
-  const toggleFavorito = (id) => {
-    setFavoritos(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    setSearchTerm(''); setFacultad(''); setCarrera(''); setFiltersApplied(false); setShowFavoritesOnly(false);
   };
 
   const handleViewProfile = (mentor) => {
@@ -239,6 +367,21 @@ export default function MentoresPage() {
         return;
       }
 
+      // Verificar si ya existe una solicitud Pendiente o Activa con este mentor
+      const { data: existing } = await supabase
+        .from('mentorias')
+        .select('id, estado')
+        .eq('estudiante_id', profileId)
+        .eq('mentor_id', mentor.id)
+        .in('estado', ['Pendiente', 'Activa'])
+        .maybeSingle();
+
+      if (existing) {
+        setErrorMsg('Ya tienes una solicitud ' + (existing.estado === 'Activa' ? 'activa' : 'pendiente') + ' con este mentor.');
+        setSaving(false);
+        return;
+      }
+
       const { error } = await supabase
         .from('mentorias')
         .insert({
@@ -255,7 +398,26 @@ export default function MentoresPage() {
         return;
       }
 
-      // --- Crear canal de Stream Chat ---
+      navigate('/mentorias');
+    } catch (err) {
+      console.error('Error requesting mentor:', err);
+      setErrorMsg('Error: ' + (err.message || err.details || err.hint || 'Error al procesar la solicitud'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleContact = async (otherUser) => {
+    setSaving(true);
+    setErrorMsg('');
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+        setErrorMsg('Debes iniciar sesión');
+        setSaving(false);
+        return;
+      }
+
       const chatClient = new StreamChat(API_KEY);
       const session = await supabase.auth.getSession();
       const accessToken = session.data.session?.access_token;
@@ -274,80 +436,40 @@ export default function MentoresPage() {
         throw new Error(`Error HTTP ${response.status}: ${errorText}`);
       }
       const tokenData = await response.json();
-      const token = tokenData.token;
       await chatClient.connectUser(
-        { id: authUser.id, name: profile?.nombre_completo || authUser.email },
-        token
+        { id: authUser.id, name: authUser.user_metadata?.nombre_completo || authUser.email },
+        tokenData.token
       );
 
-      // Verificar si el mentor existe en Stream Chat; si no, crearlo con token de servidor
-      let mentorExists = false;
-      try {
-        const userQuery = await chatClient.queryUsers({ id: { $eq: mentor.id } });
-        if (userQuery.users.length > 0) mentorExists = true;
-      } catch (e) { /* Ignorar error */ }
-
-      if (!mentorExists) {
-        // Conectar y desconectar como el mentor para que Stream Chat lo cree automáticamente
-        const session2 = await supabase.auth.getSession();
-        const accessToken2 = session2.data.session?.access_token;
-        if (!accessToken2) throw new Error('No hay sesión activa');
-
-        const mentorResp = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken2}`
-          },
-          body: JSON.stringify({ userId: mentor.id })
-        });
-        if (!mentorResp.ok) {
-          const errorText = await mentorResp.text();
-          throw new Error(`Error HTTP ${mentorResp.status}: ${errorText}`);
-        }
-        const mentorTokenData = await mentorResp.json();
-        const mentorToken = mentorTokenData.token;
-        const tempClient = new StreamChat(API_KEY);
-        await tempClient.connectUser(
-          { id: mentor.id, name: mentor.nombre_completo },
-          mentorToken
-        );
-        await tempClient.disconnectUser();
-      }
-
-      // 1. Verificar si el canal ya existe entre el estudiante y el mentor
-      const sortedIds = [authUser.id, mentor.id].sort();
-      const channelId = `mentoria-${sortedIds[0]}-${sortedIds[1]}`;
-
-      const existingChannels = await chatClient.queryChannels({
-        type: 'messaging',
-        members: { $in: [authUser.id, mentor.id] }
+      const channelId = [authUser.id, otherUser.id].sort().map(id => id.replace(/-/g, '').slice(0, 16)).join('-');
+      const channel = chatClient.channel('messaging', channelId, {
+        members: [authUser.id, otherUser.id]
       });
+      await channel.create();
 
-      let channel;
-      const exactMatch = existingChannels.find(
-        ch => ch.id === channelId || (ch.state?.members && ch.state.members[authUser.id] && ch.state.members[mentor.id])
-      );
-      if (exactMatch) {
-        channel = exactMatch;
-      } else {
-        channel = chatClient.channel('messaging', channelId, {
-          members: [authUser.id, mentor.id]
-        });
-        await channel.watch();
-      }
-
-      await channel.sendMessage({
-        text: "¡Hola! He solicitado tu mentoría. Espero que podamos trabajar juntos."
-      });
-
-      navigate('/mentorias');
+      await chatClient.disconnectUser();
+      navigate(`/mensajes?channel=${channelId}`);
     } catch (err) {
-      console.error('Error requesting mentor:', err);
-      setErrorMsg('Error: ' + (err.message || err.details || err.hint || 'Error al procesar la solicitud'));
+      console.error('Error contacting user:', err);
+      setErrorMsg('Error al contactar: ' + (err.message || 'Error desconocido'));
     } finally {
       setSaving(false);
     }
+  };
+
+  const getRating = (mentor) => {
+    if (promedios[mentor.id]) return promedios[mentor.id].promedio;
+    return mentor.promedio ? (mentor.promedio / 20 * 5).toFixed(1) : '0.0';
+  };
+
+  const getResenas = (mentor) => {
+    if (promedios[mentor.id]) return promedios[mentor.id].total;
+    return 0;
+  };
+
+  const getRatingFull = (mentor) => {
+    if (promedios[mentor.id]) return `(${getResenas(mentor)} reseñas)`;
+    return mentor.promedio ? `(${(mentor.promedio / 20 * 5).toFixed(1)}/5)` : '(0 reseñas)';
   };
 
   return (
@@ -358,7 +480,7 @@ export default function MentoresPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Mentores</h1>
-            <p className="text-gray-500 text-sm mt-2">Encuentra mentores expertos dispuestos a ayudarte a crecer.</p>
+            <p className="text-gray-500 text-sm mt-2">{userRol === 'Mentor' ? 'Conecta con otros mentores, comparte conocimientos y sigue creciendo.' : 'Encuentra mentores expertos dispuestos a ayudarte a crecer.'}</p>
           </div>
           <div className="flex items-center gap-4 w-full md:w-auto">
             <div className="relative flex-1 md:w-64">
@@ -368,22 +490,19 @@ export default function MentoresPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar mentores..."
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]"
+                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]"
               />
             </div>
             <Header nombreUsuario={userName} initials={userInitials} />
           </div>
         </div>
 
-        {/* MAIN CONTENT */}
         <div className="py-6">
-
-          {/* HORIZONTAL FILTER BAR */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
             <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
               <div className="relative w-full md:w-auto" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setOpenDropdown(openDropdown === 'facultad' ? '' : 'facultad')}
-                  className="bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto">
+                  className="bg-white border border-gray-200 rounded-full px-4 py-2 min-h-[44px] text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto">
                   {facultad || 'Facultad: Todas'} <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${openDropdown === 'facultad' ? 'rotate-180' : ''}`} />
                 </button>
                 {openDropdown === 'facultad' && (
@@ -400,7 +519,7 @@ export default function MentoresPage() {
                   if (!facultad) return;
                   setOpenDropdown(openDropdown === 'carrera' ? '' : 'carrera')
                 }}
-                  className={`bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto ${!facultad ? 'opacity-50 pointer-events-none' : ''}`}>
+                  className={`bg-white border border-gray-200 rounded-full px-4 py-2 min-h-[44px] text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto ${!facultad ? 'opacity-50 pointer-events-none' : ''}`}>
                   {carrera || 'Carrera: Todas'} <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${openDropdown === 'carrera' ? 'rotate-180' : ''}`} />
                 </button>
                 {openDropdown === 'carrera' && facultad && (
@@ -414,7 +533,7 @@ export default function MentoresPage() {
               </div>
               <div className="relative w-full md:w-auto" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setOpenDropdown(openDropdown === 'rating' ? '' : 'rating')}
-                  className="bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto">
+                  className="bg-white border border-gray-200 rounded-full px-4 py-2 min-h-[44px] text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto">
                   {calificacion ? (ratingOptions.find(o => o.value === calificacion)?.label || calificacion) : 'Calificación'} <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${openDropdown === 'rating' ? 'rotate-180' : ''}`} />
                 </button>
                 {openDropdown === 'rating' && (
@@ -427,7 +546,7 @@ export default function MentoresPage() {
               </div>
               <div className="relative w-full md:w-auto" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setOpenDropdown(openDropdown === 'sort' ? '' : 'sort')}
-                  className="bg-white border border-gray-200 rounded-full px-4 py-2 text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto">
+                  className="bg-white border border-gray-200 rounded-full px-4 py-2 min-h-[44px] text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto">
                   {sortBy === 'populares' ? 'Más populares' : 'Mejor calificación'} <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${openDropdown === 'sort' ? 'rotate-180' : ''}`} />
                 </button>
                 {openDropdown === 'sort' && (
@@ -437,16 +556,22 @@ export default function MentoresPage() {
                   </div>
                 )}
               </div>
+              <button onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                className={`flex items-center gap-1.5 text-sm font-medium px-3 py-2.5 min-h-[44px] transition rounded-full ${
+                  showFavoritesOnly
+                    ? 'bg-red-50 text-red-600 border border-red-200'
+                    : 'text-gray-500 hover:text-[#0f2a5c]'
+                }`}>
+                <Heart className={`w-4 h-4 ${showFavoritesOnly ? 'text-red-500 fill-red-500' : ''}`} /> Mis Favoritos
+              </button>
               <button onClick={handleClearFilters}
-                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#0f2a5c] font-medium px-3 py-2.5 transition">
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#0f2a5c] font-medium px-3 py-2.5 min-h-[44px] transition">
                 <RefreshCw className="w-4 h-4" /> Limpiar
               </button>
             </div>
           </div>
 
-          {/* MAIN CONTENT - MENTORS GRID */}
           <main>
-
             {errorMsg && (
               <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -476,14 +601,19 @@ export default function MentoresPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {visibleMentors.map((mentor) => {
                   const initials = mentor.nombre_completo?.split(' ').map(n => n[0]).join('').toUpperCase() || '??';
-                  const rating = mentor.promedio ? (mentor.promedio / 20 * 5).toFixed(1) : '0.0';
-                  const esFavorito = favoritos.has(mentor.id);
+                  const rating = getRating(mentor);
+                  const isFav = favoritos.has(mentor.id);
+                  const isFavLoading = favoriteLoading.has(mentor.id);
+                  const activas = mentorActiveCounts[mentor.id] || 0;
+                  const capacidadLlena = activas >= 5 && userRol !== 'Mentor';
+                  const mismaCarrera = userCarrera && mentor.carrera && userCarrera === mentor.carrera;
+                  const cursos = mentor.cursos || [];
                   
                   return (
                     <motion.div
                       whileHover={{ scale: 1.02, y: -4 }}
                       transition={{ duration: 0.2 }}
-                      className="relative bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:shadow-xl transition-shadow duration-300">
+                      className="relative bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
                       <div className="flex items-start gap-3 mb-3">
                         <div className="relative w-14 h-14 flex-shrink-0">
                           {mentor.avatar_url ? (
@@ -504,70 +634,78 @@ export default function MentoresPage() {
                           <p className="text-gray-500 text-[11px] truncate mt-0.5">{mentor.carrera || 'Sin especialidad'}</p>
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">Disponible</span>
-                          <button onClick={() => toggleFavorito(mentor.id)} className={`p-1 rounded-lg transition ${esFavorito ? 'text-red-500' : 'text-gray-400 hover:text-red-400'}`}>
-                            <Heart className={`w-4 h-4 ${esFavorito ? 'fill-red-500' : ''}`} />
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${capacidadLlena ? 'bg-red-100 text-red-700' : mentor.disponible === false ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>{capacidadLlena ? 'Lleno' : mentor.disponible === false ? 'No disponible' : 'Disponible'}</span>
+                          <button onClick={(e) => toggleFavorite(mentor.id, e)} disabled={isFavLoading} className="transition-transform hover:scale-110">
+                            <Heart className={`w-4 h-4 ${isFavLoading ? 'opacity-50' : ''} ${isFav ? 'text-red-500 fill-red-500' : 'text-gray-300'}`} />
                           </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                        <span className="text-sm font-medium text-gray-800">{rating}</span>
-                        <span className="text-gray-500 text-xs">({mentor.promedio || 0}/20)</span>
-                      </div>
+                      {cursos.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {cursos.slice(0, 4).map((curso) => (
+                            <span key={curso} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                              {curso}
+                            </span>
+                          ))}
+                          {cursos.length > 4 && (
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">
+                              +{cursos.length - 4}
+                            </span>
+                          )}
+                        </div>
+                      )}
 
-                      <p className="text-gray-600 text-sm mb-1">
-                        {mentor.cursos && mentor.cursos.length > 0
-                          ? `Cursos: ${mentor.cursos[0]}${mentor.cursos.length > 1 ? ` + ${mentor.cursos.length - 1} más` : ''}`
-                          : 'Sin cursos asignados'}
-                      </p>
                       <p className="text-gray-600 text-sm mb-3">
                         {mentor.ciclo ? `Ciclo ${mentor.ciclo}` : ''}
                       </p>
+
+                      {mismaCarrera && (
+                        <p className="text-xs text-[#0f2a5c] font-medium mb-2">
+                          Compañero en {userCarrera}
+                        </p>
+                      )}
 
                       <div className="flex items-center gap-1.5 text-gray-500 text-xs mb-4">
                         <Clock className="w-3.5 h-3.5" />
                         <span>Responde pronto</span>
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 mt-auto">
                         <button onClick={() => handleViewProfile(mentor)}
-                          className="flex-1 border border-[#0f2a5c] text-[#0f2a5c] py-2 px-3 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/5 transition">
+                          className="flex-1 border border-[#0f2a5c] text-[#0f2a5c] py-2 px-3 min-h-[44px] rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/5 transition">
                           Ver perfil
                         </button>
-                        <button onClick={() => handleSolicitarMentor(mentor)}
-                          disabled={saving}
-                          className="flex-1 bg-[#0f2a5c] text-white py-2 px-3 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                          {saving ? 'Cargando...' : 'Solicitar mentor'}
-                        </button>
+{userRol === 'Mentor' ? (
+  <button onClick={() => handleContact(mentor)}
+    className="flex-1 bg-[#0f2a5c] text-white py-2 px-3 min-h-[44px] rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+    disabled={saving}>
+    <Send className="w-4 h-4" /> {saving ? 'Conectando...' : 'Conectar'}
+  </button>
+) : capacidadLlena ? (
+  <button disabled
+    className="flex-1 bg-gray-300 text-white py-2 px-3 min-h-[44px] rounded-xl text-sm font-medium cursor-not-allowed flex items-center justify-center gap-1.5">
+    Capacidad llena
+  </button>
+) : (
+  <button onClick={() => handleSolicitarMentor(mentor)}
+    className="flex-1 bg-[#0f2a5c] text-white py-2 px-3 min-h-[44px] rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+    disabled={saving}>
+    <Hand className="w-4 h-4" /> {saving ? 'Solicitando...' : 'Solicitar mentoría'}
+  </button>
+)}
                       </div>
+                      <p className="text-xs text-gray-400 text-center mt-2">¡Aprende con los mejores!</p>
                     </motion.div>
                   );
                 })}
               </div>
 
-              {Math.ceil(filteredMentors.length / ITEMS_PER_PAGE) > 1 && (
-                <div className="flex justify-center items-center gap-2 mt-8">
-                  <button onClick={() => setVisibleCount(ITEMS_PER_PAGE)}
-                    disabled={visibleCount === ITEMS_PER_PAGE}
-                    className="w-10 h-10 rounded-full flex items-center justify-center border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  {Array.from({ length: Math.ceil(filteredMentors.length / ITEMS_PER_PAGE) }, (_, i) => i + 1).map((page) => (
-                    <button key={page} onClick={() => setVisibleCount(page * ITEMS_PER_PAGE)}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center border text-sm font-medium transition ${
-                        visibleCount >= page * ITEMS_PER_PAGE
-                          ? 'bg-[#0f2a5c] text-white border-[#0f2a5c]'
-                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                      }`}>
-                      {page}
-                    </button>
-                  ))}
-                  <button onClick={() => setVisibleCount(filteredMentors.length)}
-                    disabled={visibleCount >= filteredMentors.length}
-                    className="w-10 h-10 rounded-full flex items-center justify-center border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                    <ChevronRight className="w-5 h-5" />
+              {filteredMentors.length > visibleCount && (
+                <div className="flex justify-center mt-8">
+                  <button onClick={() => setVisibleCount(prev => prev + ITEMS_PER_PAGE)}
+                    className="bg-white border border-[#0f2a5c] text-[#0f2a5c] px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/5 transition flex items-center gap-2">
+                    Cargar más mentores ({filteredMentors.length - visibleCount} restantes)
                   </button>
                 </div>
               )}
@@ -578,7 +716,7 @@ export default function MentoresPage() {
       {/* PROFILE MODAL */}
       {profileModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setProfileModal(null)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-[95%] max-w-md mx-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
                 {profileModal.avatar_url ? (
@@ -597,42 +735,59 @@ export default function MentoresPage() {
                   <p className="text-sm text-gray-500">{profileModal.carrera || 'Sin especialidad'}</p>
                 </div>
               </div>
-              <button onClick={() => setProfileModal(null)} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-            <div className="flex items-center gap-1 mb-3">
-              <Star className="w-4 h-4 text-yellow-500 fill-current" />
-              <span className="text-sm font-medium">{profileModal.promedio ? (profileModal.promedio / 20 * 5).toFixed(1) : '0.0'}</span>
-              <span className="text-xs text-gray-500">({profileModal.promedio || 0}/20)</span>
+              <div className="flex items-center gap-2">
+                <button onClick={(e) => toggleFavorite(profileModal.id, e)} className="transition-transform hover:scale-110">
+                  <Heart className={`w-5 h-5 ${favoritos.has(profileModal.id) ? 'text-red-500 fill-red-500' : 'text-gray-300'}`} />
+                </button>
+                <button onClick={() => setProfileModal(null)} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              {profileModal.estilo_aprendizaje && `Estilo de aprendizaje: ${profileModal.estilo_aprendizaje}`}
-              {profileModal.ciclo && profileModal.estilo_aprendizaje && ' • '}
-              {profileModal.ciclo && `Ciclo ${profileModal.ciclo}`}
-              {!profileModal.estilo_aprendizaje && !profileModal.ciclo && 'Mentor disponible para ayudarte en tus estudios.'}
+              {profileModal.ciclo ? `Ciclo ${profileModal.ciclo}` : 'Mentor disponible para ayudarte en tus estudios.'}
             </p>
+            {profileModal.carrera && userCarrera === profileModal.carrera && (
+              <p className="text-xs text-[#0f2a5c] font-medium mb-2">
+                Compañero en {userCarrera}
+              </p>
+            )}
             <div className="flex flex-wrap gap-1.5 mb-4">
               {profileModal.carrera && (
                 <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{profileModal.carrera}</span>
               )}
-              {profileModal.estilo_aprendizaje && (
-                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{profileModal.estilo_aprendizaje}</span>
-              )}
               {profileModal.ciclo && (
                 <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">Ciclo {profileModal.ciclo}</span>
+              )}
+              {profileModal.cursos && profileModal.cursos.length > 0 && (
+                profileModal.cursos.slice(0, 6).map((curso) => (
+                  <span key={curso} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">{curso}</span>
+                ))
               )}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-4">
               <Clock className="w-3.5 h-3.5" />
               <span>Responde pronto</span>
             </div>
-            <button onClick={() => { setProfileModal(null); handleSolicitarMentor(profileModal); }}
-              disabled={saving}
-              className="w-full bg-[#0f2a5c] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-              <Send className="w-4 h-4" />
-              {saving ? 'Cargando...' : 'Solicitar mentoría'}
-            </button>
+{userRol === 'Mentor' ? (
+  <button onClick={() => { setProfileModal(null); handleContact(profileModal); }}
+    className="w-full bg-[#0f2a5c] text-white py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+    disabled={saving}>
+    <Send className="w-4 h-4" /> {saving ? 'Conectando...' : 'Conectar'}
+  </button>
+) : (mentorActiveCounts[profileModal.id] || 0) >= 5 ? (
+  <button disabled
+    className="w-full bg-gray-300 text-white py-2.5 min-h-[44px] rounded-xl text-sm font-medium cursor-not-allowed flex items-center justify-center gap-2">
+    Capacidad llena
+  </button>
+) : (
+  <button onClick={() => { setProfileModal(null); handleSolicitarMentor(profileModal); }}
+    className="w-full bg-[#0f2a5c] text-white py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+    disabled={saving}>
+    <Hand className="w-4 h-4" /> {saving ? 'Solicitando...' : 'Solicitar mentoría'}
+  </button>
+)}
+            <p className="text-xs text-gray-400 text-center mt-2">¡Aprende con los mejores!</p>
           </div>
         </div>
       )}

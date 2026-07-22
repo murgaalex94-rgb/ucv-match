@@ -20,7 +20,7 @@ import {
   Phone, Video, X, Info, Send,
   FileText, Image, Video as VideoIcon,
   Download, ExternalLink, File, Trash2, Ban, Mail, MessageSquare, Reply, Table, Monitor, Archive, Pin, Pencil, Clipboard, Smile, MoreVertical, User, BellOff,
-  Wifi, WifiOff, Clock,
+  Clock,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
@@ -165,7 +165,7 @@ const FilePreviewModal = ({ file, fileType, onSend, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
-        <button onClick={handleClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+        <button onClick={handleClose} className="p-1 min-h-[44px] min-w-[44px] hover:bg-gray-100 rounded-lg transition-colors flex items-center justify-center">
           <X className="w-6 h-6 text-gray-700" />
         </button>
         <span className="text-sm font-medium text-gray-800 truncate max-w-[60%] text-center">{file?.name}</span>
@@ -202,10 +202,10 @@ const FilePreviewModal = ({ file, fileType, onSend, onClose }) => {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
           placeholder="Escribe un mensaje..."
-          className="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#0f2a5c]"
+          className="flex-1 bg-gray-100 rounded-full px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#0f2a5c]"
           autoFocus
         />
-        <button onClick={handleSend} className="p-3 bg-[#00a67e] text-white rounded-full hover:bg-[#008f6c] transition-colors shadow-md">
+        <button onClick={handleSend} className="p-3 min-h-[44px] min-w-[44px] bg-[#00a67e] text-white rounded-full hover:bg-[#008f6c] transition-colors shadow-md">
           <Send className="w-5 h-5" />
         </button>
       </div>
@@ -213,9 +213,27 @@ const FilePreviewModal = ({ file, fileType, onSend, onClose }) => {
   );
 };
 
-const ActiveChannelSync = ({ setActiveChannel }) => {
-  const { channel } = useChatContext();
-  useEffect(() => { setActiveChannel(channel); }, [channel, setActiveChannel]);
+
+
+const ChannelSelector = ({ channelId }) => {
+  const { setActiveChannel, client } = useChatContext();
+
+  useEffect(() => {
+    if (!channelId || !client) return;
+
+    const selectChannel = async () => {
+      try {
+        const channel = client.channel('messaging', channelId);
+        await channel.watch();
+        setActiveChannel(channel);
+        window.history.replaceState(null, '', '/mensajes');
+      } catch (err) {
+        console.error('Error selecting channel from URL:', err);
+      }
+    };
+    selectChannel();
+  }, [channelId, client, setActiveChannel]);
+
   return null;
 };
 
@@ -309,6 +327,41 @@ const CustomSendButton = ({ sendMessage }) => (
   </button>
 );
 
+const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel }) => {
+  const { user } = useAuth();
+  const members = Object.values(channel.state?.members || {});
+  const otherMember = members.find(m => m.user?.id !== user?.id);
+  const displayName = channel.data?.name || otherMember?.user?.name || 'Chat';
+  const initials = displayName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  const lastMessage = channel.state?.latestMessages?.[0];
+  const lastMessageText = lastMessage?.text || '';
+  const isMyMessage = lastMessage?.user?.id === user?.id;
+  const previewText = lastMessageText
+    ? (isMyMessage ? `Tú: ${lastMessageText}` : lastMessageText)
+    : 'Sin mensajes aún';
+  const truncatedPreview = previewText.length > 50 ? previewText.slice(0, 50) + '...' : previewText;
+  const isActive = activeChannel?.cid === channel.cid;
+
+  return (
+    <div
+      onClick={() => setActiveChannel(channel)}
+      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+        isActive ? 'bg-blue-50' : 'hover:bg-gray-50'
+      }`}
+    >
+      <div className="w-10 h-10 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
+        {initials}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex justify-between items-baseline">
+          <p className="text-sm font-semibold text-gray-800 truncate">{displayName}</p>
+        </div>
+        <p className="text-xs text-gray-500 truncate">{truncatedPreview}</p>
+      </div>
+    </div>
+  );
+};
+
 const ChatHeader = ({
   onBackClick,
   setShowCallModal,
@@ -319,10 +372,13 @@ const ChatHeader = ({
   mutedChats, setMutedChats,
   isOnline,
   pendingCount,
+  esMentor,
+  userId,
 }) => {
   const { channel } = useChatContext();
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
+  const [mentoriaContext, setMentoriaContext] = useState(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -332,19 +388,53 @@ const ChatHeader = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!channel || !userId) {
+      setMentoriaContext(null);
+      return;
+    }
+    const members = Object.values(channel.state?.members || {});
+    const otherMember = members.find(m => m.user?.id !== userId);
+    const otherUserId = otherMember?.user?.id;
+    if (!otherUserId) return;
+
+    const fetchMentoria = async () => {
+      const { data } = await supabase
+        .from('mentorias')
+        .select('estado, materia, fecha_solicitud')
+        .or(`and(estudiante_id.eq.${userId},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${userId},estudiante_id.eq.${otherUserId})`)
+        .in('estado', ['Pendiente', 'Activa'])
+        .order('fecha_solicitud', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) setMentoriaContext(data);
+    };
+    fetchMentoria();
+  }, [channel?.cid, userId]);
+
   if (!channel) return null;
 
   const members = Object.values(channel.state?.members || {});
-  const otherMember = members.find(m => m.user?.id !== channel.state?.members?.[Object.keys(channel.state?.members || {})[0]]?.user?.id);
+  const otherMember = members.find(m => m.user?.id !== userId);
   const displayName = channel.data?.name || otherMember?.user?.name || 'Chat';
   const initials = displayName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+  };
 
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
       <div className="flex items-center gap-3 min-w-0">
         {onBackClick && (
-          <button onClick={onBackClick} className="md:hidden p-1 -ml-1 rounded-lg hover:bg-gray-100 transition-colors" title="Volver">
-            <ChevronLeft className="w-5 h-5 text-gray-500" />
+          <button
+            onClick={onBackClick}
+            className="md:hidden p-2 hover:bg-gray-100 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="Volver"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-700" />
           </button>
         )}
         <div className="w-9 h-9 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
@@ -352,16 +442,23 @@ const ChatHeader = ({
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-800 truncate">{displayName}</p>
+          {mentoriaContext && (
+            <p className="text-[10px] text-gray-500 truncate">
+              {mentoriaContext.estado === 'Activa'
+                ? `Mentoría activa: ${mentoriaContext.materia || 'General'}`
+                : `Esperando confirmación del ${esMentor ? 'estudiante' : 'mentor'}...`}
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1 text-xs">
               {isOnline ? (
                 <>
-                  <Wifi className="w-3 h-3 text-green-500" />
+                  <span className="w-2 h-2 bg-green-500 rounded-full" />
                   <span className="text-green-600 font-medium">En línea</span>
                 </>
               ) : (
                 <>
-                  <WifiOff className="w-3 h-3 text-red-500" />
+                  <span className="w-2 h-2 bg-gray-300 rounded-full" />
                   <span className="text-red-600 font-medium">Sin conexión</span>
                 </>
               )}
@@ -389,11 +486,22 @@ const ChatHeader = ({
                 <User className="w-4 h-4 text-gray-400" /> Ver perfil
               </button>
               <button
-                onClick={() => {
-                  const newMuted = new Set(mutedChats);
-                  if (newMuted.has(channel.cid)) newMuted.delete(channel.cid);
-                  else newMuted.add(channel.cid);
-                  setMutedChats(newMuted);
+                onClick={async () => {
+                  try {
+                    if (mutedChats.has(channel.cid)) {
+                      await channel.unmute();
+                      const newMuted = new Set(mutedChats);
+                      newMuted.delete(channel.cid);
+                      setMutedChats(newMuted);
+                    } else {
+                      await channel.mute();
+                      const newMuted = new Set(mutedChats);
+                      newMuted.add(channel.cid);
+                      setMutedChats(newMuted);
+                    }
+                  } catch (err) {
+                    console.error('Error toggling mute:', err);
+                  }
                   setShowMenu(false);
                 }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -427,7 +535,7 @@ const ChatHeader = ({
   );
 };
 
-const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setShowCallModal, setShowProfileModal, setShowClearChatModal, setShowDeleteChatModal, mutedChats, setMutedChats, uploadError, onBackClick }) => {
+const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setShowCallModal, setShowProfileModal, setShowClearChatModal, setShowDeleteChatModal, mutedChats, setMutedChats, uploadError, onBackClick, esMentor, userId, mentoriaBlockedMsg }) => {
   const { channel } = useChatContext();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
@@ -495,11 +603,13 @@ const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setS
             setMutedChats={setMutedChats}
             isOnline={isOnline}
             pendingCount={pendingCount}
+            esMentor={esMentor}
+            userId={userId}
           />
           <MessageList />
           {chatBlocked && (
             <div className="border-t border-gray-200 p-4 bg-white text-center text-sm text-gray-400">
-              Chat bloqueado. Desbloquea desde el menú de opciones.
+              {mentoriaBlockedMsg || 'Chat bloqueado. Desbloquea desde el menú de opciones.'}
             </div>
           )}
           {uploadError && (
@@ -515,12 +625,62 @@ const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setS
 };
 
 const messageBubbleStyle = `
-  .str-chat__message--me .str-chat__message-inner .str-chat__message-bubble,
-  .str-chat__message--other .str-chat__message-inner .str-chat__message-bubble {
+  .str-chat__message--me .str-chat__message-inner .str-chat__message-bubble {
+    background-color: #0f2a5c !important;
     border: none !important;
+    border-radius: 16px 16px 4px 16px !important;
+    padding-bottom: 20px !important;
+  }
+  .str-chat__message--me .str-chat__message-inner .str-chat__message-bubble p,
+  .str-chat__message--me .str-chat__message-inner .str-chat__message-bubble .str-chat__message-text {
+    color: #FFFFFF !important;
+    font-size: 0.875rem !important;
+    line-height: 1.25rem !important;
+  }
+  .str-chat__message--other .str-chat__message-inner .str-chat__message-bubble {
+    background-color: #FFFFFF !important;
+    border: 1px solid #E5E7EB !important;
+    border-radius: 16px 16px 16px 4px !important;
+    padding-bottom: 20px !important;
+  }
+  .str-chat__message--other .str-chat__message-inner .str-chat__message-bubble p,
+  .str-chat__message--other .str-chat__message-inner .str-chat__message-bubble .str-chat__message-text {
+    color: #1F2937 !important;
+    font-size: 0.875rem !important;
+    line-height: 1.25rem !important;
+  }
+  .str-chat__message-data {
+    position: absolute !important;
+    bottom: 2px !important;
+    right: 10px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+  }
+  .str-chat__message-data-timestamp {
+    font-size: 10px !important;
+  }
+  .str-chat__message--me .str-chat__message-data-timestamp {
+    color: rgba(255, 255, 255, 0.65) !important;
+  }
+  .str-chat__message--other .str-chat__message-data-timestamp {
+    color: #9CA3AF !important;
+  }
+  .str-chat__message-simple-status-read-by {
+    font-size: 10px !important;
+    color: #60A5FA !important;
+  }
+  .str-chat__send-button:hover {
+    background-color: #0b1d42 !important;
+    border-radius: 8px !important;
   }
   .str-chat__message-emoji {
     font-size: 2.25rem !important;
+  }
+  .str-chat__message-attachment-card {
+    border-radius: 12px !important;
   }
   .str-chat__channel-list-messenger__header {
     display: none !important;
@@ -533,6 +693,12 @@ const messageBubbleStyle = `
   }
   .str-chat__message-composer__additional-actions {
     order: -1 !important;
+  }
+  .str-chat__message-composer {
+    gap: 12px !important;
+  }
+  .str-chat__message-composer .str-chat__message-composer__send-button {
+    margin-left: 12px !important;
   }
 `;
 
@@ -556,13 +722,51 @@ export default function MensajesPage() {
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [imageViewer, setImageViewer] = useState(null);
   const [mutedChats, setMutedChats] = useState(new Set());
-  const [noChannels, setNoChannels] = useState(false);
   const [contactProfile, setContactProfile] = useState(null);
+  const channelFromUrl = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('channel') || null;
+  }, []);
   const [profileLoading, setProfileLoading] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const maxRetries = 3;
   const initChatRef = useRef(null);
+  const [mentoriaBlockedMsg, setMentoriaBlockedMsg] = useState('');
+
+  const esMentor = user?.rol === 'Mentor' || user?.user_metadata?.rol === 'Mentor';
+
+  useEffect(() => {
+    if (!activeChannel || !user) return;
+    setMentoriaBlockedMsg('');
+    const members = Object.values(activeChannel.state?.members || {});
+    const otherMember = members.find(m => m.user?.id !== user.id);
+    const otherUserId = otherMember?.user?.id;
+    if (!otherUserId) return;
+
+    const checkMentoria = async () => {
+      const { data } = await supabase
+        .from('mentorias')
+        .select('estado')
+        .or(`and(estudiante_id.eq.${user.id},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${user.id},estudiante_id.eq.${otherUserId})`)
+        .in('estado', ['Pendiente', 'Activa'])
+        .order('fecha_solicitud', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data && data.estado === 'Pendiente' && !esMentor) {
+        setChatBlocked(true);
+        setMentoriaBlockedMsg('Espera a que el mentor acepte tu solicitud para poder chatear.');
+      } else if (data && data.estado === 'Activa' && chatBlocked && mentoriaBlockedMsg) {
+        setChatBlocked(false);
+        setMentoriaBlockedMsg('');
+      }
+    };
+    checkMentoria();
+  }, [activeChannel?.cid, user?.id]);
+
+  const handleBackClick = useCallback(() => {
+    navigate('/dashboard');
+  }, [navigate]);
 
   const handleRetry = useCallback(() => {
     if (retryCount >= maxRetries) {
@@ -668,16 +872,6 @@ export default function MensajesPage() {
 
         setChatClient(client);
         setLoading(false);
-
-        try {
-          const filter = { members: { $in: [streamUserId] } };
-          const channels = await client.queryChannels(filter, {}, { limit: 1 });
-          if (channels.length === 0) {
-            setNoChannels(true);
-          }
-        } catch (queryErr) {
-          console.log('Error querying channels:', queryErr);
-        }
       } catch (err) {
         console.error('Stream Chat init error:', err);
         if (!state.cancelled) {
@@ -751,7 +945,11 @@ export default function MensajesPage() {
   const handleDeleteChat = async () => {
     try {
       if (activeChannel) {
-        await activeChannel.delete();
+        try {
+          await activeChannel.delete();
+        } catch {
+          await activeChannel.hide();
+        }
         setActiveChannel(null);
         setShowDeleteChatModal(false);
       }
@@ -820,7 +1018,7 @@ export default function MensajesPage() {
               </p>
             )}
             <button onClick={handleRetry}
-              className="px-4 py-2 bg-[#0f2a5c] text-white rounded-lg text-sm hover:bg-[#0f2a5c]/90 transition">
+              className="px-4 py-2 min-h-[44px] bg-[#0f2a5c] text-white rounded-lg text-sm hover:bg-[#0f2a5c]/90 transition">
               {retryCount >= maxRetries ? 'Recargar página' : 'Reintentar'}
             </button>
           </div>
@@ -892,14 +1090,30 @@ export default function MensajesPage() {
         </div>
 
         <Chat client={chatClient} theme="messaging light">
-          <ActiveChannelSync setActiveChannel={setActiveChannel} />
+          {channelFromUrl && <ChannelSelector channelId={channelFromUrl} />}
           <div className="flex flex-1 overflow-hidden">
             {/* LEFT PANEL - CHANNEL LIST */}
-            <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0 ${activeChannel ? 'hidden md:block' : ''}`}>
-              <ChannelList
-                filters={{ members: { $in: [user.id] } }}
-                options={{ limit: 5 }}
-              />
+            <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-gray-200 flex flex-col ${activeChannel ? 'hidden md:flex' : ''}`}>
+              <div className="px-4 pt-4 pb-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar conversaciones..."
+                    className="w-full bg-gray-100 rounded-full pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#0f2a5c]"
+                  />
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <ChannelList
+                  filters={{ members: { $in: [user.id] }, member_count: { $gt: 1 } }}
+                  sort={{ last_message_at: -1 }}
+                  options={{ limit: 5 }}
+                  Preview={CustomChannelPreview}
+                />
+              </div>
             </div>
 
             {/* RIGHT PANEL - CHAT OR EMPTY STATE */}
@@ -915,7 +1129,10 @@ export default function MensajesPage() {
                 mutedChats={mutedChats}
                 setMutedChats={setMutedChats}
                 uploadError={uploadError}
+                esMentor={esMentor}
+                userId={user?.id}
                 onBackClick={() => setActiveChannel(null)}
+                mentoriaBlockedMsg={mentoriaBlockedMsg}
               />
             </div>
           </div>
@@ -926,7 +1143,7 @@ export default function MensajesPage() {
       {showFilePreview && pendingFile && pendingFile.type.startsWith('image/') && (
         <div className="fixed inset-0 z-50 bg-white flex flex-col">
           <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-white">
-            <button onClick={handleClosePreview} className="p-2 text-gray-500 hover:text-gray-700">
+            <button onClick={handleClosePreview} className="p-2 min-h-[44px] min-w-[44px] text-gray-500 hover:text-gray-700 flex items-center justify-center">
               <X className="w-6 h-6" />
             </button>
             <h2 className="text-lg font-medium text-gray-800 truncate max-w-md">{pendingFile.name}</h2>
@@ -950,7 +1167,7 @@ export default function MensajesPage() {
             />
             <button
               onClick={handleSendFile}
-              className="bg-[#00a67e] text-white rounded-full p-3 shadow-lg hover:bg-[#008f6c] transition"
+              className="bg-[#00a67e] text-white rounded-full p-3 min-h-[44px] min-w-[44px] shadow-lg hover:bg-[#008f6c] transition"
             >
               <Send className="w-5 h-5" />
             </button>
@@ -961,7 +1178,7 @@ export default function MensajesPage() {
       {showFilePreview && pendingFile && pendingFile.type.startsWith('video/') && (
         <div className="fixed inset-0 z-50 bg-white flex flex-col">
           <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-white">
-            <button onClick={handleClosePreview} className="p-2 text-gray-500 hover:text-gray-700">
+            <button onClick={handleClosePreview} className="p-2 min-h-[44px] min-w-[44px] text-gray-500 hover:text-gray-700 flex items-center justify-center">
               <X className="w-6 h-6" />
             </button>
             <h2 className="text-lg font-medium text-gray-800 truncate max-w-md">{pendingFile.name}</h2>
@@ -985,7 +1202,7 @@ export default function MensajesPage() {
             />
             <button
               onClick={handleSendVideo}
-              className="bg-[#00a67e] text-white rounded-full p-3 shadow-lg hover:bg-[#008f6c] transition"
+              className="bg-[#00a67e] text-white rounded-full p-3 min-h-[44px] min-w-[44px] shadow-lg hover:bg-[#008f6c] transition"
             >
               <Send className="w-5 h-5" />
             </button>
@@ -1018,10 +1235,10 @@ export default function MensajesPage() {
 
       {showProfileModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowProfileModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-[95%] max-w-sm mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-800">Perfil del contacto</h3>
-              <button onClick={() => setShowProfileModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setShowProfileModal(false)} className="p-1 hover:bg-gray-100 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center">
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
@@ -1066,16 +1283,16 @@ export default function MensajesPage() {
 
       {showClearChatModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowClearChatModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-[95%] max-w-sm mx-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-gray-800 mb-2">Vaciar chat</h3>
             <p className="text-sm text-gray-600 mb-6">¿Seguro que quieres eliminar todos los mensajes de este chat? Esta acción no se puede deshacer.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowClearChatModal(false)}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                className="flex-1 px-4 py-2 min-h-[44px] text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                 Cancelar
               </button>
               <button onClick={handleClearChat}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors">
+                className="flex-1 px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors">
                 Eliminar
               </button>
             </div>
@@ -1085,16 +1302,16 @@ export default function MensajesPage() {
 
       {showDeleteChatModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowDeleteChatModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-[95%] max-w-sm mx-4" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-gray-800 mb-2">Eliminar chat</h3>
             <p className="text-sm text-gray-600 mb-6">¿Seguro que quieres eliminar este chat permanentemente? Todos los mensajes se perderán.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowDeleteChatModal(false)}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                className="flex-1 px-4 py-2 min-h-[44px] text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                 Cancelar
               </button>
               <button onClick={handleDeleteChat}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors">
+                className="flex-1 px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors">
                 Eliminar
               </button>
             </div>
@@ -1104,10 +1321,10 @@ export default function MensajesPage() {
 
       {showCallModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCallModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-[95%] max-w-sm mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-800">Comunicarte</h3>
-              <button onClick={() => setShowCallModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5 text-gray-400" /></button>
+              <button onClick={() => setShowCallModal(false)} className="p-1 hover:bg-gray-100 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="flex flex-col gap-3">
               <button onClick={() => {
@@ -1129,7 +1346,7 @@ export default function MensajesPage() {
             </div>
             <div className="mt-4">
               <button onClick={() => setShowCallModal(false)}
-                className="w-full px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                className="w-full px-4 py-2 min-h-[44px] text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                 Cancelar
               </button>
             </div>
@@ -1139,15 +1356,15 @@ export default function MensajesPage() {
 
       {showDiscardModal && (
         <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center" onClick={() => setShowDiscardModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-80 mx-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[95%] max-w-sm mx-4" onClick={e => e.stopPropagation()}>
             <p className="text-base font-semibold text-gray-800 text-center mb-5">¿Quieres descartar la selección?</p>
             <div className="flex gap-3">
               <button onClick={() => setShowDiscardModal(false)}
-                className="flex-1 px-4 py-2 text-[#008f6c] font-medium hover:bg-gray-100 rounded-lg transition-colors">
+                className="flex-1 px-4 py-2 min-h-[44px] text-[#008f6c] font-medium hover:bg-gray-100 rounded-lg transition-colors">
                 Cancelar
               </button>
               <button onClick={handleDiscardPreview}
-                className="flex-1 px-4 py-2 bg-[#00a67e] text-white font-bold rounded-full hover:bg-[#008f6c] transition-colors">
+                className="flex-1 px-4 py-2 min-h-[44px] bg-[#00a67e] text-white font-bold rounded-full hover:bg-[#008f6c] transition-colors">
                 Descartar
               </button>
             </div>
@@ -1166,3 +1383,4 @@ export default function MensajesPage() {
     </div>
   );
 };
+

@@ -4,7 +4,7 @@ import {
   Search,
   User, Lock, Eye, EyeOff, Mail, Settings,
   CheckCircle,
-  Camera, LogOut, AlertTriangle, Trash2
+  Camera, LogOut, AlertTriangle, Trash2, X as XIcon
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
@@ -21,6 +21,7 @@ export default function ConfiguracionPage() {
     nombres: '',
     apellidos: '',
     email: '',
+    correo_alternativo: '',
     fecha_nacimiento: '',
     genero: '',
     biografia: ''
@@ -41,6 +42,13 @@ export default function ConfiguracionPage() {
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [twoFAMessage, setTwoFAMessage] = useState('');
+  const [userRol, setUserRol] = useState('');
+  const [ciclo, setCiclo] = useState('');
+  const [intereses, setIntereses] = useState([]);
+  const [cursoSearch, setCursoSearch] = useState('');
+  const [cursoResults, setCursoResults] = useState([]);
+  const [showCursoDropdown, setShowCursoDropdown] = useState(false);
+  const [addingCurso, setAddingCurso] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -57,7 +65,7 @@ export default function ConfiguracionPage() {
 
         const { data: profileRow } = await supabase
           .from('profiles')
-          .select('nombre_completo, email, avatar_url, genero, biografia, fecha_nacimiento')
+          .select('nombre_completo, email, avatar_url, genero, biografia, fecha_nacimiento, correo_alternativo, rol, ciclo')
           .eq('id', authUser.id)
           .maybeSingle();
 
@@ -77,6 +85,12 @@ export default function ConfiguracionPage() {
           setIs2FAEnabled(true)
         }
 
+        const dbRol = profileRow?.rol || authUser.user_metadata?.rol || '';
+        const dbCiclo = profileRow?.ciclo || '';
+
+        setUserRol(dbRol);
+        setCiclo(dbCiclo);
+
         setProfileData({
           nombre_completo: displayName,
           email: displayEmail,
@@ -89,10 +103,36 @@ export default function ConfiguracionPage() {
           nombres: nameParts.slice(0, mid).join(' ') || '',
           apellidos: nameParts.slice(mid).join(' ') || '',
           email: displayEmail,
+          correo_alternativo: profileRow?.correo_alternativo || '',
           fecha_nacimiento: displayFechaNac,
           genero: displayGenero,
           biografia: displayBiografia
         });
+
+        // Load academic interests
+        const { data: interesesData } = await supabase
+          .from('intereses_usuarios')
+          .select('id, curso_id, tipo')
+          .eq('usuario_id', authUser.id)
+          .order('created_at', { ascending: false });
+
+        if (interesesData) {
+          const cursosIds = interesesData.map(i => i.curso_id).filter(Boolean);
+          let cursosMap = {};
+          if (cursosIds.length > 0) {
+            const { data: cursosData } = await supabase
+              .from('cursos')
+              .select('id, nombre')
+              .in('id', cursosIds);
+            if (cursosData) {
+              cursosData.forEach(c => { cursosMap[c.id] = c.nombre; });
+            }
+          }
+          setIntereses(interesesData.map(i => ({
+            ...i,
+            nombre_curso: cursosMap[i.curso_id] || 'Curso'
+          })));
+        }
       } catch (error) {
         console.error('Error loading user data:', error);
       } finally {
@@ -111,6 +151,7 @@ export default function ConfiguracionPage() {
         .from('profiles')
         .update({
           nombre_completo: nombreCompleto,
+          correo_alternativo: formData.correo_alternativo || null,
           fecha_nacimiento: formData.fecha_nacimiento,
           genero: formData.genero,
           biografia: formData.biografia
@@ -246,6 +287,81 @@ export default function ConfiguracionPage() {
     }
   };
 
+  const handleCursoSearch = async (value) => {
+    setCursoSearch(value);
+    if (value.length < 2) {
+      setCursoResults([]);
+      setShowCursoDropdown(false);
+      return;
+    }
+    const { data } = await supabase
+      .from('cursos')
+      .select('id, nombre')
+      .ilike('nombre', `%${value}%`)
+      .limit(10);
+    setCursoResults(data || []);
+    setShowCursoDropdown((data?.length || 0) > 0);
+  };
+
+  const handleAddInteres = async (cursoId, cursoNombre) => {
+    setAddingCurso(true);
+    const tipo = userRol === 'Mentor' ? 'ensenar' : 'aprender';
+    try {
+      const { data, error } = await supabase
+        .from('intereses_usuarios')
+        .insert({ usuario_id: user.id, curso_id: cursoId, tipo })
+        .select('id')
+        .single();
+      if (error) throw error;
+      setIntereses(prev => [{ id: data.id, curso_id: cursoId, nombre_curso: cursoNombre, tipo }, ...prev]);
+      setCursoSearch('');
+      setCursoResults([]);
+      setShowCursoDropdown(false);
+      setMessage('Interés agregado correctamente');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      if (err.code === '23505') {
+        setMessage('Este curso ya está en tu lista de intereses');
+      } else {
+        setMessage('Error al agregar interés: ' + (err.message || ''));
+      }
+      setTimeout(() => setMessage(''), 3000);
+    } finally {
+      setAddingCurso(false);
+    }
+  };
+
+  const handleRemoveInteres = async (id) => {
+    try {
+      const { error } = await supabase
+        .from('intereses_usuarios')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      setIntereses(prev => prev.filter(i => i.id !== id));
+      setMessage('Interés eliminado');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      setMessage('Error al eliminar interés: ' + (err.message || ''));
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const handleSaveCiclo = async () => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ ciclo: parseInt(ciclo) || null })
+        .eq('id', user.id);
+      if (error) throw error;
+      setMessage('Ciclo actualizado correctamente');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      setMessage('Error al guardar ciclo: ' + (err.message || ''));
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
   const handleDeletePhoto = async () => {
     if (!user || !profileData?.avatar_url) return;
 
@@ -353,14 +469,14 @@ export default function ConfiguracionPage() {
                   <p className="text-sm text-gray-500">Usuario</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombres</label>
                   <input 
                     type="text" 
                     value={formData.nombres}
                     onChange={(e) => setFormData({ ...formData, nombres: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" 
+                    className="w-full px-4 py-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" 
                   />
                 </div>
                 <div>
@@ -369,20 +485,29 @@ export default function ConfiguracionPage() {
                     type="text" 
                     value={formData.apellidos}
                     onChange={(e) => setFormData({ ...formData, apellidos: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" 
+                    className="w-full px-4 py-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" 
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Correo electrónico</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Correo electrónico institucional</label>
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 rounded-xl border-none text-sm text-gray-500">
+                    <Lock className="w-4 h-4 text-gray-400 shrink-0" />
+                    <span>{formData.email} (Correo institucional - No editable)</span>
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Correo de contacto alternativo (opcional)</label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input 
-                      type="email" 
-                      value={formData.email}
-                      disabled 
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-500 cursor-not-allowed" 
+                    <input
+                      type="email"
+                      value={formData.correo_alternativo}
+                      onChange={(e) => setFormData({ ...formData, correo_alternativo: e.target.value })}
+                      placeholder="correo@ejemplo.com"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
                     />
                   </div>
+                  <p className="text-[10px] text-gray-400 mt-1">No se usará para iniciar sesión, solo para notificaciones y recuperación de contraseña.</p>
                 </div>
                 <div>
                   <MaterialDatePicker
@@ -397,7 +522,7 @@ export default function ConfiguracionPage() {
                   <select
                     value={formData.genero}
                     onChange={(e) => setFormData({ ...formData, genero: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] bg-white"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] bg-white"
                   >
                     <option value="">Seleccionar</option>
                     <option value="Masculino">Masculino</option>
@@ -410,18 +535,118 @@ export default function ConfiguracionPage() {
                     value={formData.biografia}
                     onChange={(e) => setFormData({ ...formData, biografia: e.target.value })}
                     rows={4}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] resize-none"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] resize-none"
                     placeholder="Cuéntanos sobre ti..."
                   />
                 </div>
                 <div className="col-span-2 flex justify-end">
                   <button 
                     onClick={handleSaveProfile}
-                    className="bg-[#0f2a5c] text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition flex items-center gap-2"
+                    className="bg-[#0f2a5c] text-white px-6 py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition flex items-center gap-2"
                   >
                     Guardar Cambios
                   </button>
                 </div>
+              </div>
+            </section>
+
+            {/* INTERESES ACADÉMICOS */}
+            <section className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2">
+                <Settings className="w-5 h-5 text-[#0f2a5c]" />
+                Intereses Académicos
+              </h3>
+
+              {/* Ciclo */}
+              <div className="mb-6">
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Ciclo actual</label>
+                <div className="flex gap-3 items-center">
+                  <select
+                    value={ciclo}
+                    onChange={(e) => setCiclo(e.target.value)}
+                    className="w-32 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] bg-white"
+                  >
+                    <option value="">Seleccionar</option>
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={n}>{n}° Ciclo</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleSaveCiclo}
+                    className="bg-[#0f2a5c] text-white px-4 py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition"
+                  >
+                    Guardar Ciclo
+                  </button>
+                </div>
+              </div>
+
+              <hr className="border-gray-100 my-5" />
+
+              {/* Agregar curso como interés */}
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  {userRol === 'Mentor'
+                    ? '¿Qué cursos enseñas? (selecciona los que dominas)'
+                    : '¿Qué cursos quieres aprender? (selecciona tus intereses)'}
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 z-10" />
+                  <input
+                    type="text"
+                    value={cursoSearch}
+                    onChange={(e) => handleCursoSearch(e.target.value)}
+                    onFocus={() => { if (cursoResults.length > 0) setShowCursoDropdown(true); }}
+                    onBlur={() => setTimeout(() => setShowCursoDropdown(false), 200)}
+                    placeholder="Buscar curso por nombre..."
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
+                  />
+                  {showCursoDropdown && cursoResults.length > 0 && (
+                    <div className="absolute z-50 mt-1 w-full bg-white shadow-xl rounded-xl max-h-48 overflow-y-auto border border-gray-100">
+                      {cursoResults.map((curso) => (
+                        <button
+                          key={curso.id}
+                          disabled={addingCurso || intereses.some(i => i.curso_id === curso.id)}
+                          onClick={() => handleAddInteres(curso.id, curso.nombre)}
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition flex items-center justify-between disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <span>{curso.nombre}</span>
+                          {intereses.some(i => i.curso_id === curso.id) ? (
+                            <span className="text-xs text-green-600 font-medium">Agregado</span>
+                          ) : (
+                            <span className="text-xs text-[#0f2a5c] font-medium">+ Agregar</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lista de intereses actuales */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-2">
+                  Mis intereses {intereses.length > 0 && `(${intereses.length})`}
+                </label>
+                {intereses.length === 0 ? (
+                  <p className="text-sm text-gray-400">Aún no has agregado intereses académicos.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {intereses.map((interes) => (
+                      <span
+                        key={interes.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium"
+                      >
+                        {interes.nombre_curso}
+                        <button
+                          onClick={() => handleRemoveInteres(interes.id)}
+                          className="hover:text-red-600 transition-colors"
+                        >
+                          <XIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
 
@@ -445,7 +670,7 @@ export default function ConfiguracionPage() {
                           value={passwordData[field.key]}
                           onChange={(e) => setPasswordData({ ...passwordData, [field.key]: e.target.value })}
                           placeholder={field.placeholder}
-                          className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
+                          className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
                         />
                         <button
                           onClick={() => setShowPassword({ ...showPassword, [field.key]: !showPassword[field.key] })}
@@ -459,7 +684,7 @@ export default function ConfiguracionPage() {
                   <div className="flex justify-end pt-2">
                     <button 
                       onClick={handleChangePassword}
-                      className="border border-[#0f2a5c] text-[#0f2a5c] px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/5 transition"
+                      className="border border-[#0f2a5c] text-[#0f2a5c] px-6 py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/5 transition"
                     >
                       Actualizar Contraseña
                     </button>
@@ -514,7 +739,7 @@ export default function ConfiguracionPage() {
                       }
                     }}
                     disabled={is2FAEnabled || isEnrolling}
-                    className={`px-6 py-2.5 rounded-xl text-sm font-medium transition flex items-center gap-2 ${
+                    className={`px-6 py-2.5 min-h-[44px] rounded-xl text-sm font-medium transition flex items-center gap-2 ${
                       is2FAEnabled
                         ? 'bg-green-600 text-white cursor-not-allowed'
                         : 'bg-[#0f2a5c] text-white hover:bg-[#0f2a5c]/90'
@@ -536,14 +761,14 @@ export default function ConfiguracionPage() {
               <div className="flex flex-col gap-3">
                 <button 
                   onClick={() => setShowLogoutModal(true)}
-                  className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-red-700 transition flex items-center gap-2"
+                  className="bg-red-600 text-white px-6 py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-red-700 transition flex items-center gap-2"
                 >
                   <LogOut className="w-4 h-4" />
                   Cerrar Sesión (solo este dispositivo)
                 </button>
                 <button 
                   onClick={() => setShowGlobalLogoutModal(true)}
-                  className="bg-orange-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-orange-700 transition flex items-center gap-2"
+                  className="bg-orange-600 text-white px-6 py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-orange-700 transition flex items-center gap-2"
                 >
                   <LogOut className="w-4 h-4" />
                   Cerrar Sesión en TODOS los dispositivos
@@ -559,7 +784,7 @@ export default function ConfiguracionPage() {
                 <div className="flex-1">
                   <h3 className="text-base font-semibold text-gray-800 mb-1">Eliminar Cuenta</h3>
                   <p className="text-sm text-gray-600 mb-4">Al eliminar tu cuenta, todos tus datos serán eliminados permanentemente. Esta acción no se puede deshacer.</p>
-                  <button onClick={() => setShowDeleteModal(true)} className="border border-red-500 text-red-600 px-5 py-2 rounded-xl text-sm font-medium hover:bg-red-50 transition">
+                  <button onClick={() => setShowDeleteModal(true)} className="border border-red-500 text-red-600 px-5 py-2 min-h-[44px] rounded-xl text-sm font-medium hover:bg-red-50 transition">
                     Eliminar mi cuenta
                   </button>
                 </div>
@@ -570,7 +795,7 @@ export default function ConfiguracionPage() {
             {twoFAModal.open && (
               <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => { if (!isVerifying) setTwoFAModal({ ...twoFAModal, open: false }) }}>
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
-                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-[95%] max-w-sm mx-auto" onClick={e => e.stopPropagation()}>
                   <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">Configurar 2FA</h3>
                   <p className="text-sm text-gray-600 mb-4 text-center">Escanea este código QR con tu aplicación de autenticación (Google Authenticator, Authy, etc.)</p>
                   <div className="flex justify-center mb-4">
@@ -583,7 +808,7 @@ export default function ConfiguracionPage() {
                     value={verificationCode}
                     onChange={e => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="000000"
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-center text-lg font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] mb-4"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-center text-lg font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] mb-4"
                   />
                   {twoFAMessage && (
                     <p className={`text-sm text-center mb-3 ${twoFAMessage.includes('✅') ? 'text-green-600' : 'text-red-600'}`}>{twoFAMessage}</p>
@@ -592,7 +817,7 @@ export default function ConfiguracionPage() {
                     <button
                       onClick={() => setTwoFAModal({ ...twoFAModal, open: false })}
                       disabled={isVerifying}
-                      className="flex-1 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
+                      className="flex-1 border border-gray-200 text-gray-700 py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
                     >
                       Cancelar
                     </button>
@@ -636,14 +861,14 @@ export default function ConfiguracionPage() {
             {showGlobalLogoutModal && (
               <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => setShowGlobalLogoutModal(false)}>
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
-                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-[95%] max-w-sm mx-auto" onClick={e => e.stopPropagation()}>
                   <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <LogOut className="w-6 h-6 text-orange-500" />
                   </div>
                   <h3 className="text-lg font-bold text-gray-800 mb-2 text-center">Cerrar sesión en TODOS los dispositivos</h3>
                   <p className="text-sm text-gray-600 mb-6 text-center">Esto cerrará tu sesión en todos los dispositivos donde hayas iniciado sesión. Tendrás que volver a iniciar sesión en cada uno.</p>
                   <div className="flex gap-3">
-                    <button onClick={() => setShowGlobalLogoutModal(false)} className="flex-1 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                    <button onClick={() => setShowGlobalLogoutModal(false)} className="flex-1 border border-gray-200 text-gray-700 py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-gray-50 transition">
                       Cancelar
                     </button>
                     <button onClick={handleGlobalLogout} className="flex-1 bg-orange-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-orange-700 transition">
@@ -658,11 +883,11 @@ export default function ConfiguracionPage() {
             {showLogoutModal && (
               <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => setShowLogoutModal(false)}>
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
-                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-[95%] max-w-sm mx-auto" onClick={e => e.stopPropagation()}>
                   <h3 className="text-lg font-bold text-gray-800 mb-2">¿Seguro que quieres cerrar sesión?</h3>
                   <p className="text-sm text-gray-600 mb-6">Tendrás que volver a iniciar sesión para acceder a tu cuenta.</p>
                   <div className="flex gap-3">
-                    <button onClick={() => setShowLogoutModal(false)} className="flex-1 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                    <button onClick={() => setShowLogoutModal(false)} className="flex-1 border border-gray-200 text-gray-700 py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-gray-50 transition">
                       Cancelar
                     </button>
                     <button onClick={handleLogout} className="flex-1 bg-red-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-red-700 transition">
@@ -677,14 +902,14 @@ export default function ConfiguracionPage() {
             {showDeleteModal && (
               <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => setShowDeleteModal(false)}>
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
-                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+                <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-[95%] max-w-sm mx-auto" onClick={e => e.stopPropagation()}>
                   <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <AlertTriangle className="w-6 h-6 text-red-500" />
                   </div>
                   <h3 className="text-lg font-bold text-gray-800 mb-2 text-center">Eliminar cuenta</h3>
                   <p className="text-sm text-gray-600 mb-6 text-center">Esta acción eliminará permanentemente tu cuenta y todos tus datos. ¿Estás seguro?</p>
                   <div className="flex gap-3">
-                    <button onClick={() => setShowDeleteModal(false)} className="flex-1 border border-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                    <button onClick={() => setShowDeleteModal(false)} className="flex-1 border border-gray-200 text-gray-700 py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-gray-50 transition">
                       Cancelar
                     </button>
                     <button onClick={handleDeleteAccount} className="flex-1 bg-red-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-red-700 transition">

@@ -24,7 +24,7 @@ export default function LandingPage() {
       className="min-h-screen bg-[#f5f7fa] font-sans flex flex-col">
       {/* HEADER */}
       <header className="bg-[#0a1f3d] text-white">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-2">
             <img 
               src="/escudo_ucv.png" 
@@ -44,7 +44,7 @@ export default function LandingPage() {
             >
               <button
                 onClick={() => navigate('/login')}
-                className="w-full md:w-auto px-5 py-2 border border-white text-white rounded-lg text-sm font-medium hover:bg-white/10 transition"
+                className="w-full md:w-auto px-5 py-3 border border-white text-white rounded-lg text-sm font-medium hover:bg-white/10 transition min-h-[44px] py-3 md:py-2"
               >
                 Iniciar Sesión
               </button>
@@ -57,7 +57,7 @@ export default function LandingPage() {
             >
               <button
                 onClick={() => navigate('/register')}
-                className="w-full md:w-auto px-5 py-2 bg-white text-[#0a1f3d] rounded-lg text-sm font-medium hover:bg-gray-100 transition"
+                className="w-full md:w-auto px-5 py-3 bg-white text-[#0a1f3d] rounded-lg text-sm font-medium hover:bg-gray-100 transition min-h-[44px] py-3 md:py-2"
               >
                 Registrarse
               </button>
@@ -69,12 +69,12 @@ export default function LandingPage() {
       {/* HERO SECTION */}
       <main className="flex-1">
         <section className="bg-[#0a1f3d] text-white">
-          <div className="max-w-4xl mx-auto px-6 py-20 text-center">
+          <div className="max-w-4xl mx-auto px-4 md:px-6 py-12 md:py-20 text-center">
             <motion.h1
               initial={{ opacity: 0, y: -30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, ease: 'easeOut' }}
-              className="text-4xl md:text-5xl font-bold mb-4"
+              className="text-2xl md:text-4xl lg:text-5xl font-bold mb-4"
             >
               Conecta. Aprende. Haz Match.
             </motion.h1>
@@ -82,7 +82,7 @@ export default function LandingPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3, duration: 0.7 }}
-              className="text-lg text-blue-200 mb-8 max-w-2xl mx-auto"
+              className="text-base md:text-lg text-blue-200 mb-8 max-w-2xl mx-auto"
             >
               La plataforma que conecta estudiantes de la UCV para compartir
               conocimientos, encontrar mentores y potenciar tu aprendizaje.
@@ -97,8 +97,8 @@ export default function LandingPage() {
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.5, duration: 0.5, ease: 'easeOut' }}
-                onClick={() => navigate('/login')}
-                className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg text-lg font-medium transition shadow-lg"
+                onClick={() => navigate('/register')}
+                className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-lg text-lg font-medium transition shadow-lg min-h-[44px]"
               >
                 Comenzar ahora →
               </motion.button>
@@ -107,8 +107,8 @@ export default function LandingPage() {
         </section>
 
         {/* CARDS SECTION */}
-        <section className="max-w-5xl mx-auto px-6 -mt-10 pb-16">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <section className="max-w-5xl mx-auto px-4 md:px-6 -mt-10 pb-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {[
               { icon: Users, color: 'blue', title: 'Mentoría entre estudiantes', desc: 'Conéctate con compañeros de semestres avanzados que te guiarán en tu camino académico.' },
               { icon: BookOpen, color: 'green', title: 'Recursos académicos', desc: 'Accede a apuntes, guías y materiales compartidos por la comunidad universitaria.' },
@@ -120,12 +120,12 @@ export default function LandingPage() {
                 initial="hidden"
                 animate="visible"
                 variants={cardVariants}
-                className="bg-white rounded-2xl shadow-md p-6 text-center"
+                className="bg-white rounded-2xl shadow-md p-5 md:p-6 text-center"
               >
                 <div className={`w-14 h-14 bg-${card.color}-100 rounded-xl flex items-center justify-center mx-auto mb-4`}>
                   <card.icon className={`w-7 h-7 text-${card.color}-600`} />
                 </div>
-                <h3 className="font-semibold text-gray-800 mb-2">{card.title}</h3>
+                <h3 className="font-semibold text-gray-800 mb-2 text-base md:text-lg">{card.title}</h3>
                 <p className="text-sm text-gray-500">{card.desc}</p>
               </motion.div>
             ))}

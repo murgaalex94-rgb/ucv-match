@@ -25,6 +25,9 @@ public class Mentoria {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Column(name = "stream_chat_channel_id")
+    private String streamChatChannelId;
+
     public Mentoria() {}
 
     public UUID getId() { return id; }
@@ -35,6 +38,8 @@ public class Mentoria {
     public void setFechaInicio(LocalDateTime fechaInicio) { this.fechaInicio = fechaInicio; }
     public String getEstado() { return estado; }
     public void setEstado(String estado) { this.estado = estado; }
+    public String getStreamChatChannelId() { return streamChatChannelId; }
+    public void setStreamChatChannelId(String streamChatChannelId) { this.streamChatChannelId = streamChatChannelId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

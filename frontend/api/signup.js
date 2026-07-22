@@ -1,3 +1,31 @@
+const api = (url, opts = {}) => fetch(url, {
+  ...opts,
+  headers: {
+    'Content-Type': 'application/json',
+    'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY,
+    'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    ...opts.headers,
+  },
+})
+
+const listUsers = async (supabaseUrl, email) => {
+  const res = await api(`${supabaseUrl}/auth/v1/admin/users`)
+  const data = await res.json()
+  if (!res.ok || !data.users) return null
+  return data.users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+}
+
+const deleteUser = async (supabaseUrl, email, userId) => {
+  await api(`${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(email.toLowerCase())}`, { method: 'DELETE' })
+  await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: {
+      'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY,
+      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  })
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST')
@@ -36,7 +64,8 @@ export default async function handler(req, res) {
     if (!serviceRoleKey)
       return res.status(500).json({ success: false, message: 'SUPABASE_SERVICE_ROLE_KEY no configurada' })
 
-    const supabaseRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+    // Intentar crear usuario
+    let supabaseRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -50,7 +79,33 @@ export default async function handler(req, res) {
       }),
     })
 
-    const supabaseData = await supabaseRes.json()
+    let supabaseData = await supabaseRes.json()
+
+    // Si falla porque el usuario ya existe, intentar eliminar y recrear
+    if (!supabaseRes.ok) {
+      const msg = (supabaseData?.msg || supabaseData?.message || '').toLowerCase()
+      if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('duplicate key') || msg.includes('unique constraint')) {
+        const existing = await listUsers(supabaseUrl, email)
+        if (existing) {
+          await deleteUser(supabaseUrl, email, existing.id)
+
+          supabaseRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': serviceRoleKey,
+              'Authorization': `Bearer ${serviceRoleKey}`,
+            },
+            body: JSON.stringify({
+              email,
+              password,
+              user_metadata: userData,
+            }),
+          })
+          supabaseData = await supabaseRes.json()
+        }
+      }
+    }
 
     if (!supabaseRes.ok)
       return res.status(500).json({ success: false, message: supabaseData?.msg || supabaseData?.message || 'Error en Supabase Admin' })
@@ -70,9 +125,6 @@ export default async function handler(req, res) {
     return res.status(500).json({
       success: false,
       message: err?.message || 'Error interno del servidor',
-      errorType: typeof err,
-      errorKeys: err ? Object.getOwnPropertyNames(err) : [],
-      stack: err?.stack?.split('\n')?.slice(0, 3) || [],
     })
   }
 }

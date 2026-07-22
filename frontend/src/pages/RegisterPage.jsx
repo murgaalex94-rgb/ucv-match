@@ -135,13 +135,13 @@ const RegisterPage = () => {
         throw new Error(signupData?.message || 'Error al registrar')
       }
 
-      navigate('/login', { state: { message: 'Revisa tu correo electrónico para confirmar tu cuenta.' } })
+      navigate('/confirm-email', { state: { email: form.email } })
     } catch (error) {
       console.error('Error en registro:', error.message)
       const msg = (error?.message || '').toLowerCase()
       if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('duplicate key') || msg.includes('unique constraint')) {
         try {
-          setError('Eliminando cuenta pendiente, espera...')
+          setError('Verificando cuenta existente...')
           const delRes = await fetch('/api/delete-unconfirmed-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -154,11 +154,17 @@ const RegisterPage = () => {
             setCaptchaVerified(false)
             setCaptchaKey(k => k + 1)
             setDeleteMessage('Cuenta antigua eliminada. Presiona "Crear Cuenta" para registrarte de nuevo.')
+          } else if (delRes.status === 404) {
+            setError('')
+            setCaptchaToken(null)
+            setCaptchaVerified(false)
+            setCaptchaKey(k => k + 1)
+            setDeleteMessage('Tu cuenta ya existe y está confirmada. Ve a Iniciar Sesión o usa "Olvidé mi contraseña".')
           } else {
             setError(delData?.message || 'No se pudo eliminar la cuenta pendiente.')
           }
         } catch (_) {
-          setError('Error al eliminar la cuenta pendiente. Intenta de nuevo o contacta a soporte.')
+          setError('Error al verificar la cuenta pendiente. Intenta de nuevo o contacta a soporte.')
         }
       } else {
         const errorMessage = error?.message || error?.error_description || JSON.stringify(error) || 'Error al registrar usuario'
@@ -413,9 +419,9 @@ const RegisterPage = () => {
   }
 
   const carreraMalla = mallasCurriculares[form.carrera]
-  const cycleCourses = form.rol === 'mentor' && carreraMalla
+  const cycleCourses = carreraMalla
     ? Object.values(carreraMalla).flat()
-    : carreraMalla?.[form.ciclo] || []
+    : []
   const availableCourses = cycleCourses.filter(
     (c) => !cursosSeleccionados.includes(c) && c.toLowerCase().includes(cursoSearch.toLowerCase())
   )
@@ -440,7 +446,7 @@ const RegisterPage = () => {
       </div>
 
       {/* COLUMNA DERECHA - FORMULARIO */}
-      <div className="flex-1 flex flex-col justify-center items-center bg-white pt-20 pb-8 px-8 relative min-h-screen overflow-y-auto">
+      <div className="flex-1 flex flex-col justify-center items-center bg-white pt-16 pb-8 px-4 md:px-8 relative min-h-screen overflow-y-auto">
         <div className="w-full max-w-md">
 
           {/* Logo Central */}
@@ -450,7 +456,7 @@ const RegisterPage = () => {
           </div>
 
           {/* Título */}
-          <h1 className="text-3xl font-bold text-[#0f2a5c] mb-1 text-center">Crear cuenta</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#0f2a5c] mb-1 text-center">Crear cuenta</h1>
           <p className="text-gray-500 text-sm mb-8 text-center">Únete a la comunidad académica UCV.</p>
 
           {/* Form */}
@@ -463,7 +469,7 @@ const RegisterPage = () => {
             )}
 
             {/* Nombres y Apellidos */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                 <input
@@ -472,7 +478,7 @@ const RegisterPage = () => {
                   value={form.nombres}
                   onChange={handleChange}
                   placeholder="Nombres"
-                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                  className="w-full pl-11 pr-4 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
                   required
                 />
                 {fieldErrors.nombres && <p className="text-red-500 text-xs mt-1">{fieldErrors.nombres}</p>}
@@ -485,7 +491,7 @@ const RegisterPage = () => {
                   value={form.apellidos}
                   onChange={handleChange}
                   placeholder="Apellidos"
-                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                  className="w-full pl-11 pr-4 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
                   required
                 />
                 {fieldErrors.apellidos && <p className="text-red-500 text-xs mt-1">{fieldErrors.apellidos}</p>}
@@ -501,7 +507,7 @@ const RegisterPage = () => {
                 value={form.codigoEstudiante}
                 onChange={handleChange}
                 placeholder="Código de Estudiante"
-                className="w-full pl-11 pr-12 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                className="w-full pl-11 pr-12 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
                 required
               />
               {fieldErrors.codigoEstudiante && <p className="text-red-500 text-xs mt-1">{fieldErrors.codigoEstudiante}</p>}
@@ -516,7 +522,7 @@ const RegisterPage = () => {
                 value={form.email}
                 onChange={handleChange}
                 placeholder="correo Institucional"
-                className={`w-full pl-11 pr-12 py-3 border rounded-xl text-sm focus:ring-2 outline-none transition-all ${
+                className={`w-full pl-11 pr-12 py-4 border rounded-xl text-sm focus:ring-2 outline-none transition-all ${
                   form.email && !emailValid
                     ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
                     : emailValid
@@ -552,7 +558,7 @@ const RegisterPage = () => {
                 value={form.password}
                 onChange={handleChange}
                 placeholder="Contraseña"
-                className="w-full pl-11 pr-11 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                className="w-full pl-11 pr-11 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
                 required
               />
               <button
@@ -590,7 +596,7 @@ const RegisterPage = () => {
                 value={form.confirmPassword}
                 onChange={handleChange}
                 placeholder="Confirmar contraseña"
-                className="w-full pl-11 pr-11 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                className="w-full pl-11 pr-11 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
                 required
               />
               <button
@@ -618,7 +624,7 @@ const RegisterPage = () => {
                 <button
                   type="button"
                   onClick={() => setForm(prev => ({ ...prev, rol: 'estudiante' }))}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all min-h-[44px] ${
                     form.rol === 'estudiante'
                       ? 'bg-[#0f2a5c] text-white shadow-md'
                       : 'bg-gray-100 text-slate-700 hover:bg-gray-200 border border-gray-200'
@@ -630,7 +636,7 @@ const RegisterPage = () => {
                 <button
                   type="button"
                   onClick={() => setForm(prev => ({ ...prev, rol: 'mentor' }))}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all min-h-[44px] ${
                     form.rol === 'mentor'
                       ? 'bg-[#0f2a5c] text-white shadow-md'
                       : 'bg-gray-100 text-slate-700 hover:bg-gray-200 border border-gray-200'
@@ -649,7 +655,7 @@ const RegisterPage = () => {
               <button
                 type="button"
                 onClick={() => setCarreraOpen(!carreraOpen)}
-                className="w-full flex items-center justify-between pl-10 pr-10 py-3 border border-gray-200 rounded-xl text-sm bg-white cursor-pointer focus:outline-none focus:border-[#0f2a5c] focus:ring-2 focus:ring-[#0f2a5c]/30 transition-all"
+                className="w-full flex items-center justify-between pl-10 pr-10 py-4 border border-gray-200 rounded-xl text-sm bg-white cursor-pointer focus:outline-none focus:border-[#0f2a5c] focus:ring-2 focus:ring-[#0f2a5c]/30 transition-all min-h-[44px]"
               >
                 <span className={form.carrera ? 'text-gray-700' : 'text-gray-400'}>
                   {form.carrera || 'Selecciona tu carrera'}
@@ -689,7 +695,7 @@ const RegisterPage = () => {
       name="ciclo"
       value={form.ciclo}
       onChange={handleChange}
-      className="w-full pl-10 pr-8 py-3 border border-gray-200 rounded-xl text-sm text-gray-700 bg-white appearance-none focus:outline-none focus:border-[#0f2a5c] focus:ring-1 focus:ring-[#0f2a5c] cursor-pointer h-[44px]"
+      className="w-full pl-10 pr-8 py-4 border border-gray-200 rounded-xl text-sm text-gray-700 bg-white appearance-none focus:outline-none focus:border-[#0f2a5c] focus:ring-1 focus:ring-[#0f2a5c] cursor-pointer min-h-[44px]"
       required
     >
       <option value="" disabled>Selecciona tu ciclo</option>
@@ -713,7 +719,7 @@ const RegisterPage = () => {
       min="0"
       max="20"
       placeholder="Promedio" 
-      className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 bg-white font-medium focus:outline-none focus:border-[#0f2a5c] focus:ring-1 focus:ring-[#0f2a5c] placeholder:text-gray-400 h-[44px]" 
+      className="w-full pl-10 pr-4 py-4 border border-gray-200 rounded-xl text-sm text-gray-900 bg-white font-medium focus:outline-none focus:border-[#0f2a5c] focus:ring-1 focus:ring-[#0f2a5c] placeholder:text-gray-400 min-h-[44px]" 
       required
     />
     {promedioError && (
@@ -743,7 +749,7 @@ const RegisterPage = () => {
                   value={cursoSearch}
                   onChange={(e) => { setCursoSearch(e.target.value); setCursoOpen(true) }}
                   onFocus={() => setCursoOpen(true)}
-                  placeholder={cycleCourses.length ? (form.rol === 'mentor' ? "¿Qué cursos dominas para enseñar?" : "¿En qué curso necesitas ayuda?") : "Selecciona carrera y ciclo primero"}
+                  placeholder={cycleCourses.length ? (form.rol === 'mentor' ? "¿Qué cursos dominas para enseñar?" : "¿En qué curso necesitas ayuda?") : "Selecciona una carrera primero"}
                   className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
                   disabled={!cycleCourses.length}
                 />
@@ -789,7 +795,7 @@ const RegisterPage = () => {
             <button
               type="submit"
               disabled={!captchaVerified || captchaExpired || loading || !form.password || form.password.length < 8 || form.password !== form.confirmPassword || !emailValid}
-              className="w-full bg-[#0f2a5c] text-white py-3 rounded-xl font-bold hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50"
+              className="w-full bg-[#0f2a5c] text-white py-3 rounded-xl font-bold hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50 min-h-[44px]"
             >
               {loading ? 'Creando cuenta...' : deleteMessage ? 'Registrar de nuevo' : 'Crear Cuenta'}
             </button>

@@ -8,6 +8,7 @@ import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import ConfirmEmailPage from './pages/ConfirmEmailPage'
 
 const PendingValidation = lazy(() => import('./pages/PendingValidation'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -76,6 +77,7 @@ function App() {
 
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/confirm-email" element={<ConfirmEmailPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route
         path="/pending-validation"

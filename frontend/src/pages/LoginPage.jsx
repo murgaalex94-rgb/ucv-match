@@ -266,7 +266,7 @@ const LoginPage = () => {
       </div>
 
       {/* ========== RIGHT PANEL (Form) ========== */}
-      <div className="flex-1 flex flex-col justify-center items-center bg-white p-6 md:p-8 relative">
+      <div className="flex-1 flex flex-col justify-center items-center bg-white px-4 md:p-8 relative">
         <div className="w-full max-w-md">
 
 {/* Logo Central */}
@@ -387,7 +387,7 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-[#0f2a5c] text-white py-4 rounded-lg font-bold relative hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50"
+              className="w-full bg-[#0f2a5c] text-white py-4 rounded-lg font-bold relative hover:bg-[#0f2a5c]/90 transition-colors disabled:opacity-50 min-h-[44px]"
             >
               <span className="inline-flex items-center justify-center gap-2">
                 {isLoading ? 'Ingresando...' : 'Iniciar sesión'}
@@ -408,7 +408,7 @@ const LoginPage = () => {
 
           {/* Social Buttons */}
           <div className="flex justify-center">
-            <button type="button" onClick={handleGoogleLogin} className="px-10 py-2.5 rounded-xl flex items-center justify-center gap-2 border border-slate-300 bg-white text-sm text-slate-700 hover:bg-slate-50 transition-colors font-medium">
+            <button type="button" onClick={handleGoogleLogin} className="px-10 py-2.5 rounded-xl flex items-center justify-center gap-2 border border-slate-300 bg-white text-sm text-slate-700 hover:bg-slate-50 transition-colors font-medium min-h-[44px]">
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -435,7 +435,7 @@ const LoginPage = () => {
     </motion.div>
       {showResetModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setShowResetModal(false)}>
-          <div style={{ background: 'white', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', width: '100%', maxWidth: '400px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+          <div className="w-[95%] max-w-md mx-auto" style={{ background: 'white', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
             <div style={{ background: '#0f2a5c', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'white', margin: 0 }}>Recuperar contraseña</h2>
               <button type="button" onClick={() => setShowResetModal(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '4px', display: 'flex' }}>
