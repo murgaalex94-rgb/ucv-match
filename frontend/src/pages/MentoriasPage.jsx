@@ -341,6 +341,13 @@ function MentoriasPage() {
 
       await loadMentorias();
       setToastMsg({ text: 'Solicitud aceptada', type: 'success' });
+      
+      // Navegar al chat con el channelId para que se seleccione automáticamente
+      const id1 = authUser.id;
+      const id2 = session.estudiante_id;
+      const sorted = [id1, id2].sort();
+      const channelId = `mentoria_${sorted[0]}_${sorted[1]}`;
+      navigate(`/mensajes?channel=${channelId}`);
     } catch (error) {
       console.error('Error accepting mentorship:', error);
       setPendingCount(prev => prev + 1);
