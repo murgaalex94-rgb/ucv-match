@@ -239,17 +239,27 @@ const ChannelSelector = ({ channelId, onSelect }) => {
         }
 
         if (existingChannels && existingChannels.length > 0) {
+          const ch = existingChannels[0];
+          // Asegurar que el canal tiene su state con miembros cargados
+          if (!ch.state?.members || Object.keys(ch.state.members).length === 0) {
+            await ch.watch();
+          }
           if (isMounted) {
-            setActiveChannel(existingChannels[0]);
+            setActiveChannel(ch);
+            // Dar tiempo para que el canal sea queryable antes de refrescar la lista
+            await new Promise(r => setTimeout(r, 300));
             if (onSelect) onSelect();
           }
           return;
         }
 
-        // 2. Si no se encuentra en queryChannels, instanciar el canal por ID y activarlo directamente
+        // 2. Si no se encuentra en queryChannels, instanciar el canal por ID, hacer watch() y activarlo
         const channel = client.channel('messaging', cleanId);
+        await channel.watch();
         if (isMounted) {
           setActiveChannel(channel);
+          // Dar tiempo para que el canal sea queryable antes de refrescar la lista
+          await new Promise(r => setTimeout(r, 300));
           if (onSelect) onSelect();
         }
       } catch (err) {
@@ -257,6 +267,7 @@ const ChannelSelector = ({ channelId, onSelect }) => {
         try {
           const cleanId = channelId.includes(':') ? channelId.split(':')[1] : channelId;
           const channel = client.channel('messaging', cleanId);
+          await channel.watch();
           if (isMounted) {
             setActiveChannel(channel);
             if (onSelect) onSelect();
@@ -426,27 +437,17 @@ const getParticipantData = (otherUser, cachedProfile, mentoriaContext, userId) =
 const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel }) => {
   const { user } = useAuth();
   const members = Object.values(channel.state?.members || {});
-  let otherMember = members.find(m => m.user?.id !== user?.id);
-
-  if (!otherMember && Array.isArray(channel.data?.members)) {
-    const memList = channel.data.members;
-    const found = memList.find(m => {
-      const id = typeof m === 'string' ? m : m?.user_id || m?.user?.id;
-      return id && id !== user?.id;
-    });
-    if (found) {
-      const targetId = typeof found === 'string' ? found : (found.user_id || found.user?.id);
-      otherMember = { user: { id: targetId } };
-    }
-  }
-
+  const otherMember = members.find(m => m.user?.id !== user?.id);
   const otherUserId = otherMember?.user?.id;
-  const [profile, setProfile] = useState(() => (otherUserId ? userProfileCache.get(otherUserId) : null));
+
+  const [profile, setProfile] = useState(() => userProfileCache.get(otherUserId) || null);
 
   useEffect(() => {
     if (!otherUserId) return;
-    if (userProfileCache.has(otherUserId)) {
-      setProfile(userProfileCache.get(otherUserId));
+    // Solo usar caché si tiene un nombre real (no genérico)
+    const cached = userProfileCache.get(otherUserId);
+    if (cached && cached.nombre_completo && cached.nombre_completo !== 'Usuario' && cached.nombre_completo !== 'N/A') {
+      setProfile(cached);
       return;
     }
 
@@ -539,28 +540,52 @@ const ChatHeader = ({
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
   const [mentoriaContext, setMentoriaContext] = useState(null);
-  const members = Object.values(channel?.state?.members || {});
-  let otherMember = members.find(m => m.user?.id !== userId);
 
-  if (!otherMember && Array.isArray(channel?.data?.members)) {
-    const memList = channel.data.members;
-    const found = memList.find(m => {
-      const id = typeof m === 'string' ? m : m?.user_id || m?.user?.id;
-      return id && id !== userId;
-    });
-    if (found) {
-      const targetId = typeof found === 'string' ? found : (found.user_id || found.user?.id);
-      otherMember = { user: { id: targetId } };
+  // Estado reactivo para los miembros del canal — se actualiza cuando los miembros cargan asincrónicamente
+  const [channelMembers, setChannelMembers] = useState(() => Object.values(channel?.state?.members || {}));
+
+  useEffect(() => {
+    if (!channel) return;
+    // Inicializar con miembros actuales
+    const currentMembers = Object.values(channel.state?.members || {});
+    setChannelMembers(currentMembers);
+
+    // Escuchar cuando los miembros se cargan/actualizan
+    const handleMemberEvent = () => {
+      setChannelMembers(Object.values(channel.state?.members || {}));
+    };
+    channel.on('member.added', handleMemberEvent);
+    channel.on('member.updated', handleMemberEvent);
+    channel.on('channel.updated', handleMemberEvent);
+    // También escuchar el evento de watch completado
+    channel.on('channel.watch', handleMemberEvent);
+
+    // Si no hay miembros aún, intentar watch() para cargarlos
+    if (currentMembers.length === 0) {
+      channel.watch().then(() => {
+        setChannelMembers(Object.values(channel.state?.members || {}));
+      }).catch(err => console.warn('ChatHeader: error watching channel for members:', err));
     }
-  }
 
+    return () => {
+      channel.off('member.added', handleMemberEvent);
+      channel.off('member.updated', handleMemberEvent);
+      channel.off('channel.updated', handleMemberEvent);
+      channel.off('channel.watch', handleMemberEvent);
+    };
+  }, [channel?.cid]);
+
+  const otherMember = channelMembers.find(m => m.user?.id !== userId);
   const otherUserId = otherMember?.user?.id;
-  const [profile, setProfile] = useState(() => (otherUserId ? userProfileCache.get(otherUserId) : null));
+
+  const [profile, setProfile] = useState(() => userProfileCache.get(otherUserId) || null);
 
   useEffect(() => {
     if (!otherUserId) return;
-    if (userProfileCache.has(otherUserId)) {
-      setProfile(userProfileCache.get(otherUserId));
+    // Solo usar caché si tiene un nombre real (no genérico)
+    const cached = userProfileCache.get(otherUserId);
+    if (cached && cached.nombre_completo && cached.nombre_completo !== 'Usuario' && cached.nombre_completo !== 'N/A') {
+      setProfile(cached);
       return;
     }
 
@@ -605,43 +630,22 @@ const ChatHeader = ({
       setMentoriaContext(null);
       return;
     }
+    if (!otherUserId) return;
 
     const fetchMentoria = async () => {
-      let targetId = otherUserId;
-      let query = supabase
+      const { data } = await supabase
         .from('mentorias')
         .select(`
           id, estado, materia, fecha_solicitud, estudiante_id, mentor_id,
           estudiante:estudiante_id(id, nombre_completo, avatar_url),
           mentor:mentor_id(id, nombre_completo, avatar_url)
-        `);
-
-      if (targetId) {
-        query = query.or(`and(estudiante_id.eq.${userId},mentor_id.eq.${targetId}),and(mentor_id.eq.${userId},estudiante_id.eq.${targetId})`);
-      } else {
-        query = query.or(`estudiante_id.eq.${userId},mentor_id.eq.${userId}`);
-      }
-
-      const { data } = await query
+        `)
+        .or(`and(estudiante_id.eq.${userId},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${userId},estudiante_id.eq.${otherUserId})`)
         .in('estado', ['Pendiente', 'Activa'])
         .order('fecha_solicitud', { ascending: false })
         .limit(1)
         .maybeSingle();
-
-      if (data) {
-        setMentoriaContext(data);
-        if (!targetId) {
-          const otherPerson = data.estudiante_id === userId ? data.mentor : data.estudiante;
-          if (otherPerson?.nombre_completo) {
-            setProfile({
-              nombre_usuario: otherPerson.nombre_completo.split(' ')[0] || '',
-              apellido_usuario: otherPerson.nombre_completo.split(' ').slice(1).join(' ') || '',
-              avatar_url: otherPerson.avatar_url || null,
-              nombre_completo: otherPerson.nombre_completo,
-            });
-          }
-        }
-      }
+      if (data) setMentoriaContext(data);
     };
     fetchMentoria();
   }, [channel?.cid, userId, otherUserId]);
@@ -1002,6 +1006,18 @@ export default function MensajesPage() {
       setChannelListRefresh(prev => prev + 1);
     }
   }, [channelFromUrl, chatClient]);
+
+  // Refrescar ChannelList cuando activeChannel cambia y viene de la URL
+  // Esto asegura que el canal seleccionado aparezca en la lista lateral
+  useEffect(() => {
+    if (activeChannel && channelFromUrl) {
+      // Esperar un poco para que el canal esté completamente cargado en el cliente
+      const timer = setTimeout(() => {
+        setChannelListRefresh(prev => prev + 1);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [activeChannel?.cid, channelFromUrl]);
 
   useEffect(() => {
     if (!activeChannel || !user) return;
@@ -1404,9 +1420,9 @@ export default function MensajesPage() {
               <div className="flex-1 overflow-y-auto">
                 <ChannelList
                   key={channelListRefresh}
-                  filters={{ members: { $in: [user.id] } }}
-                  sort={[{ last_message_at: -1 }, { updated_at: -1 }]}
-                  options={{ limit: 50, state: true }}
+                  filters={{ type: 'messaging', members: { $in: [user.id] } }}
+                  sort={{ updated_at: -1, last_message_at: -1 }}
+                  options={{ limit: 50, state: true, watch: true }}
                   Preview={CustomChannelPreview}
                 />
               </div>
