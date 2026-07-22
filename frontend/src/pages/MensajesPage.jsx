@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { StreamChat } from 'stream-chat';
 import {
   Chat,
@@ -215,24 +215,30 @@ const FilePreviewModal = ({ file, fileType, onSend, onClose }) => {
 
 
 
-const ChannelSelector = ({ channelId }) => {
+const ChannelSelector = ({ channelId, onSelect }) => {
   const { setActiveChannel, client } = useChatContext();
 
   useEffect(() => {
     if (!channelId || !client) return;
 
+    let isMounted = true;
     const selectChannel = async () => {
       try {
         const channel = client.channel('messaging', channelId);
         await channel.watch();
-        setActiveChannel(channel);
-        window.history.replaceState(null, '', '/mensajes');
+        if (isMounted) {
+          setActiveChannel(channel);
+          if (onSelect) onSelect();
+          window.history.replaceState(null, '', '/mensajes');
+        }
       } catch (err) {
         console.error('Error selecting channel from URL:', err);
       }
     };
     selectChannel();
-  }, [channelId, client, setActiveChannel]);
+
+    return () => { isMounted = false; };
+  }, [channelId, client, setActiveChannel, onSelect]);
 
   return null;
 };
@@ -723,10 +729,11 @@ export default function MensajesPage() {
   const [imageViewer, setImageViewer] = useState(null);
   const [mutedChats, setMutedChats] = useState(new Set());
   const [contactProfile, setContactProfile] = useState(null);
+  const location = useLocation();
   const channelFromUrl = useMemo(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     return params.get('channel') || null;
-  }, []);
+  }, [location.search]);
   const [profileLoading, setProfileLoading] = useState(false);
   const [showDeleteChatModal, setShowDeleteChatModal] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -736,16 +743,16 @@ export default function MensajesPage() {
   // Trigger para refrescar ChannelList cuando se crea un canal nuevo
   const [channelListRefresh, setChannelListRefresh] = useState(0);
 
+  const handleChannelSelectedFromUrl = useCallback(() => {
+    setChannelListRefresh(prev => prev + 1);
+  }, []);
+
   const esMentor = user?.rol === 'Mentor' || user?.user_metadata?.rol === 'Mentor';
 
   // Refrescar ChannelList cuando se navega con un channelId nuevo (canal recién creado)
   useEffect(() => {
     if (channelFromUrl && chatClient) {
-      // Pequeño delay para dar tiempo a que Stream propague el canal
-      const timer = setTimeout(() => {
-        setChannelListRefresh(prev => prev + 1);
-      }, 1000);
-      return () => clearTimeout(timer);
+      setChannelListRefresh(prev => prev + 1);
     }
   }, [channelFromUrl, chatClient]);
 
@@ -1103,7 +1110,12 @@ export default function MensajesPage() {
         </div>
 
         <Chat client={chatClient} theme="messaging light">
-          {channelFromUrl && <ChannelSelector channelId={channelFromUrl} />}
+          {channelFromUrl && (
+            <ChannelSelector
+              channelId={channelFromUrl}
+              onSelect={handleChannelSelectedFromUrl}
+            />
+          )}
           <div className="flex flex-1 overflow-hidden">
             {/* LEFT PANEL - CHANNEL LIST */}
             <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-gray-200 flex flex-col ${activeChannel ? 'hidden md:flex' : ''}`}>
@@ -1122,9 +1134,9 @@ export default function MensajesPage() {
               <div className="flex-1 overflow-y-auto">
                 <ChannelList
                   key={channelListRefresh}
-                  filters={{ members: { $in: [user.id] }, member_count: { $gt: 1 } }}
-                  sort={{ last_message_at: -1 }}
-                  options={{ limit: 50 }}
+                  filters={{ members: { $in: [user.id] } }}
+                  sort={{ updated_at: -1, last_message_at: -1 }}
+                  options={{ limit: 50, state: true }}
                   Preview={CustomChannelPreview}
                 />
               </div>

@@ -9,6 +9,7 @@ import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { supabase } from '../lib/supabase';
 import { StreamChat } from 'stream-chat';
+import { createOrGetStreamChannel } from '../lib/chatUtils';
 
 const API_KEY = import.meta.env.VITE_STREAM_API_KEY || '3mgv7c3pnrhu';
 
@@ -192,7 +193,12 @@ export default function MentoresPage() {
         .from('calificaciones')
         .select('mentor_id, promedio, total');
       if (error) {
-        console.error('Error fetching promedios:', error);
+        // Tabla no existe o RLS - no es crítico, usar promedios por defecto
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.log('Tabla calificaciones no existe, usando valores por defecto');
+        } else {
+          console.error('Error fetching promedios:', error);
+        }
         return;
       }
       const map = {};
@@ -430,47 +436,12 @@ export default function MentoresPage() {
     }
   };
 
-  const handleContact = async (otherUser) => {
+  const handleConfirmContact = async (otherUser) => {
     setSaving(true);
     setErrorMsg('');
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) {
-        setErrorMsg('Debes iniciar sesión');
-        setSaving(false);
-        return;
-      }
-
-      const chatClient = new StreamChat(API_KEY);
-      const session = await supabase.auth.getSession();
-      const accessToken = session.data.session?.access_token;
-      if (!accessToken) throw new Error('No hay sesión activa');
-
-      const response = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({ userId: authUser.id })
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Error HTTP ${response.status}: ${errorText}`);
-      }
-      const tokenData = await response.json();
-      await chatClient.connectUser(
-        { id: authUser.id, name: authUser.user_metadata?.nombre_completo || authUser.email },
-        tokenData.token
-      );
-
-      const channelId = [authUser.id, otherUser.id].sort().map(id => id.replace(/-/g, '').slice(0, 16)).join('-');
-      const channel = chatClient.channel('messaging', channelId, {
-        members: [authUser.id, otherUser.id]
-      });
-      await channel.create();
-
-      await chatClient.disconnectUser();
+      if (!otherUser?.id) throw new Error('Usuario destino inválido');
+      const channelId = await createOrGetStreamChannel(otherUser.id);
       navigate(`/mensajes?channel=${channelId}`);
     } catch (err) {
       console.error('Error contacting user:', err);

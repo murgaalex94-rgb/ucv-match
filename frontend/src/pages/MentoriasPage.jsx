@@ -17,6 +17,7 @@ import MaterialDatePicker from '../components/MaterialDatePicker';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { StreamChat } from 'stream-chat';
+import { getChannelId, createOrGetStreamChannel } from '../lib/chatUtils';
 
 const API_KEY = import.meta.env.VITE_STREAM_API_KEY || '3mgv7c3pnrhu';
 
@@ -127,46 +128,85 @@ function MentoriasPage() {
 
       const { data: mentorias, error } = await query.order('fecha_solicitud', { ascending: false });
 
-      if (error) throw error;
-
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const hoyStr = hoy.toISOString().split('T')[0];
-
-      const hoyArr = [];
-      const proximasArr = [];
-      const historialArr = [];
-
-      for (const m of mentorias || []) {
-        if (!m.fecha_solicitud) {
-          if (m.estado === 'Pendiente') {
-            proximasArr.push(m);
-          } else {
-            historialArr.push(m);
-          }
-          continue;
+      if (error) {
+        // Si falla por columna stream_chat_channel_id no existente, reintentar sin ella
+        if (error.code === '42703' || error.message?.includes('stream_chat_channel_id')) {
+          console.log('Columna stream_chat_channel_id no existe, reintentando sin ella');
+          return loadMentoriasSinChannelId();
         }
-        const fechaM = new Date(m.fecha_solicitud);
-        const fechaMStr = fechaM.toISOString().split('T')[0];
-
-        if (fechaMStr === hoyStr && m.estado === 'Activa') {
-          hoyArr.push(m);
-        } else if (m.estado !== 'Completada' && m.estado !== 'Cancelada') {
-          proximasArr.push(m);
-        } else if (m.estado === 'Completada') {
-          historialArr.push(m);
-        }
+        throw error;
       }
 
-      setSesionesHoy(hoyArr);
-      setProximasMentorias(proximasArr);
-      setHistorial(historialArr);
+      processMentorias(mentorias || []);
       fetchPendingCount();
     } catch (error) {
       console.error('Error loading mentorias:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadMentoriasSinChannelId = async () => {
+    try {
+      let query = supabase
+        .from('mentorias')
+        .select(`
+          *,
+          estudiante:estudiante_id(nombre_completo, avatar_url, carrera),
+          mentor:mentor_id(nombre_completo, avatar_url, carrera)
+        `)
+        .eq(esMentor ? 'mentor_id' : 'estudiante_id', user.id);
+
+      if (esMentor) {
+        query = query.neq('estudiante_id', user.id);
+      }
+
+      const { data: mentorias, error } = await query.order('fecha_solicitud', { ascending: false });
+      if (error) throw error;
+
+      processMentorias(mentorias || []);
+      fetchPendingCount();
+    } catch (error) {
+      console.error('Error loading mentorias (fallback):', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const processMentorias = (mentorias) => {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const hoyStr = hoy.toISOString().split('T')[0];
+
+    const hoyArr = [];
+    const proximasArr = [];
+    const historialArr = [];
+
+    for (const m of mentorias) {
+      if (!m.fecha_solicitud) {
+        if (m.estado === 'Pendiente') {
+          proximasArr.push(m);
+        } else {
+          historialArr.push(m);
+        }
+        continue;
+      }
+      const fechaM = new Date(m.fecha_solicitud);
+      const fechaMStr = fechaM.toISOString().split('T')[0];
+
+      if (fechaMStr === hoyStr && m.estado === 'Activa') {
+        hoyArr.push(m);
+      } else if (m.estado !== 'Completada' && m.estado !== 'Cancelada') {
+        proximasArr.push(m);
+      } else if (m.estado === 'Completada') {
+        historialArr.push(m);
+      }
+    }
+
+    setSesionesHoy(hoyArr);
+    setProximasMentorias(proximasArr);
+    setHistorial(historialArr);
+    fetchPendingCount();
   };
 
   const cargarMentores = async () => {
@@ -287,49 +327,19 @@ function MentoriasPage() {
     setAcceptLoading(session.id);
     setPendingCount(prev => Math.max(0, prev - 1));
     try {
-      // Crear canal de Stream Chat entre mentor y estudiante
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser) {
-        const chatClient = new StreamChat(API_KEY);
-        const sess = await supabase.auth.getSession();
-        const accessToken = sess.data.session?.access_token;
-        if (accessToken) {
-          const response = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
-            body: JSON.stringify({ userId: authUser.id })
-          });
-          if (response.ok) {
-            const tokenData = await response.json();
-            await chatClient.connectUser(
-              { id: authUser.id, name: authUser.user_metadata?.nombre_completo || authUser.email || '' },
-              tokenData.token
-            );
-            // Usar mismo formato de channelId que el backend: mentoria_<uuid1>_<uuid2> (ordenado)
-            const id1 = authUser.id;
-            const id2 = session.estudiante_id;
-            const sorted = [id1, id2].sort();
-            const channelId = `mentoria_${sorted[0]}_${sorted[1]}`;
-            const channel = chatClient.channel('messaging', channelId, {
-              members: [authUser.id, session.estudiante_id]
-            });
-            await channel.create();
-            
-            // Guardar channelId en la mentoría via backend (el backend ya lo hace en SolicitudService.aceptar)
-            // Pero por si acaso, también lo guardamos aquí
-            await supabase
-              .from('mentorias')
-              .update({ stream_chat_channel_id: channelId })
-              .eq('id', session.id);
-            
-            await chatClient.disconnectUser();
-          }
-        }
+      let channelId = null;
+      if (session.estudiante_id) {
+        channelId = await createOrGetStreamChannel(session.estudiante_id);
+      }
+
+      const updateData = { estado: 'Activa' };
+      if (channelId) {
+        updateData.stream_chat_channel_id = channelId;
       }
 
       const { error } = await supabase
         .from('mentorias')
-        .update({ estado: 'Activa' })
+        .update(updateData)
         .eq('id', session.id);
       if (error) throw error;
 
@@ -343,15 +353,15 @@ function MentoriasPage() {
       setToastMsg({ text: 'Solicitud aceptada', type: 'success' });
       
       // Navegar al chat con el channelId para que se seleccione automáticamente
-      const id1 = authUser.id;
-      const id2 = session.estudiante_id;
-      const sorted = [id1, id2].sort();
-      const channelId = `mentoria_${sorted[0]}_${sorted[1]}`;
-      navigate(`/mensajes?channel=${channelId}`);
+      if (channelId) {
+        navigate(`/mensajes?channel=${channelId}`);
+      } else {
+        navigate('/mensajes');
+      }
     } catch (error) {
       console.error('Error accepting mentorship:', error);
       setPendingCount(prev => prev + 1);
-      setToastMsg({ text: 'Error al aceptar mentoría', type: 'error' });
+      setToastMsg({ text: 'Error al aceptar mentoría: ' + (error.message || ''), type: 'error' });
     } finally {
       setAcceptLoading(null);
     }
@@ -486,51 +496,12 @@ function MentoriasPage() {
         return;
       }
 
-      const chatClient = new StreamChat(API_KEY);
-      const sess = await supabase.auth.getSession();
-      const accessToken = sess.data.session?.access_token;
-      if (!accessToken) {
-        navigate('/mensajes');
-        return;
-      }
-
-      const response = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({ userId: authUser.id })
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Error HTTP ${response.status}: ${errorText}`);
-      }
-      const tokenData = await response.json();
-      await chatClient.connectUser(
-        { id: authUser.id, name: authUser.user_metadata?.nombre_completo || authUser.email || '' },
-        tokenData.token
-      );
-
-      // Usar el channelId que ya creó el backend y guardó en la BD
-      let channelId = session.streamChatChannelId;
-      
-      // Si no existe en BD (compatibilidad), generarlo con el mismo formato que el backend
+      let channelId = session.stream_chat_channel_id || session.streamChatChannelId;
       if (!channelId) {
-        const id1 = authUser.id;
-        const id2 = otherUserId;
-        const sorted = [id1, id2].sort();
-        channelId = `mentoria_${sorted[0]}_${sorted[1]}`;
+        channelId = getChannelId(authUser.id, otherUserId);
       }
 
-      const channel = chatClient.channel('messaging', channelId, {
-        members: [authUser.id, otherUserId]
-      });
-      await channel.watch(); // watch en lugar de create para no duplicar
-      
-      await chatClient.disconnectUser();
-      
-      // Navegar CON el channelId en la URL para auto-seleccionarlo
+      // Navegar a mensajes pasando el canal en el query param
       navigate(`/mensajes?channel=${channelId}`);
     } catch (err) {
       console.error('Error opening chat:', err);

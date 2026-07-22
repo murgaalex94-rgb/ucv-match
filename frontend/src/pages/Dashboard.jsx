@@ -11,6 +11,7 @@ import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { supabase } from '../lib/supabase';
 import { StreamChat } from 'stream-chat';
+import { getChannelId, createOrGetStreamChannel } from '../lib/chatUtils';
 
 const API_KEY = import.meta.env.VITE_STREAM_API_KEY || '3mgv7c3pnrhu';
 
@@ -415,7 +416,11 @@ export default function Dashboard() {
                         <p className="text-xs text-gray-400">{formatDate(m.fecha_solicitud)}</p>
                       </div>
                       <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Activa</span>
-                      <button onClick={() => navigate('/mensajes')}
+                      <button onClick={() => {
+                        const targetId = m.estudiante_id || m.estudiante?.id;
+                        const channelId = m.stream_chat_channel_id || (targetId && user?.id ? getChannelId(user.id, targetId) : '');
+                        navigate(channelId ? `/mensajes?channel=${channelId}` : '/mensajes');
+                      }}
                         className="text-xs bg-[#0f2a5c] text-white px-2 py-1.5 min-h-[44px] rounded-lg font-medium hover:bg-[#0f2a5c]/90 transition-colors whitespace-nowrap flex items-center gap-1">
                         <MessageSquare className="w-3.5 h-3.5" /> Ir al chat
                       </button>
@@ -558,14 +563,27 @@ export default function Dashboard() {
                           e.stopPropagation();
                           const id = solicitud.id;
                           try {
-                            const { error } = await supabase.from('mentorias').update({ estado: 'Activa' }).eq('id', id);
+                            const studentId = solicitud.estudiante_id || solicitud.estudiante?.id;
+                            let channelId = null;
+                            if (studentId) {
+                              channelId = await createOrGetStreamChannel(studentId);
+                            }
+                            const updateData = { estado: 'Activa' };
+                            if (channelId) updateData.stream_chat_channel_id = channelId;
+
+                            const { error } = await supabase.from('mentorias').update(updateData).eq('id', id);
                             if (error) throw error;
                             setSolicitudesList([]);
                             setSolicitudesPendientes(0);
                             setShowSolicitudesModal(false);
+                            if (channelId) {
+                              navigate(`/mensajes?channel=${channelId}`);
+                            } else {
+                              navigate('/mensajes');
+                            }
                           } catch (err) {
                             console.error('Error accepting request:', err);
-                            alert('Error al aceptar: ' + err.message);
+                            alert('Error al aceptar: ' + (err.message || 'Desconocido'));
                           }
                         }}
                         className="px-3 py-1.5 min-h-[44px] bg-green-600 text-white text-xs rounded-lg font-medium hover:bg-green-700 transition-colors"
