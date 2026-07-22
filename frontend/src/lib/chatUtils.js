@@ -21,60 +21,8 @@ export const createOrGetStreamChannel = async (targetUserId, targetUserName = ''
   const { data: { user: authUser } } = await supabase.auth.getUser();
   if (!authUser) throw new Error('No hay usuario autenticado');
 
-  const sess = await supabase.auth.getSession();
-  const accessToken = sess.data.session?.access_token;
-  if (!accessToken) throw new Error('No hay sesión activa');
-
-  // Limpiar token en caché para garantizar que se obtenga el nuevo token con rol admin
-  const storageKey = `stream_token_${authUser.id}`;
-  sessionStorage.removeItem(storageKey);
-
-  const response = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`
-    },
-    body: JSON.stringify({ userId: authUser.id })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Error generando token de chat: ${errorText}`);
-  }
-
-  const { token } = await response.json();
-  const chatClient = new StreamChat(API_KEY);
-
   const currentUserId = String(authUser.id);
   const otherUserId = String(targetUserId);
 
-  await chatClient.connectUser(
-    {
-      id: currentUserId,
-      name: authUser.user_metadata?.nombre_completo || authUser.email || 'Usuario',
-      role: 'admin'
-    },
-    token
-  );
-
-  const channelId = getChannelId(currentUserId, otherUserId);
-  const channel = chatClient.channel('messaging', channelId, {
-    members: [currentUserId, otherUserId]
-  });
-
-  try {
-    await channel.create();
-  } catch (err) {
-    console.warn('Advertencia en channel.create(), reintentando watch o ignorando bloqueo de permisos:', err);
-    try {
-      await channel.watch();
-    } catch (e) {
-      console.warn('Watch fallback finalizado:', e);
-    }
-  }
-
-  await chatClient.disconnectUser();
-
-  return channelId;
+  return getChannelId(currentUserId, otherUserId);
 };
