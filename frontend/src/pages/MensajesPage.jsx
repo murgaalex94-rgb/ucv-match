@@ -224,36 +224,44 @@ const ChannelSelector = ({ channelId, onSelect }) => {
     let isMounted = true;
     const selectChannel = async () => {
       try {
-        const channel = client.channel('messaging', channelId);
-        await channel.watch();
+        const cleanId = channelId.includes(':') ? channelId.split(':')[1] : channelId;
+
+        // 1. Buscar si el canal existe en las conversaciones cargadas del cliente
+        const existingChannels = await client.queryChannels({
+          type: 'messaging',
+          id: cleanId,
+        });
+
+        if (existingChannels && existingChannels.length > 0) {
+          if (isMounted) {
+            setActiveChannel(existingChannels[0]);
+            if (onSelect) onSelect();
+          }
+          return;
+        }
+
+        // 2. Si no se encuentra en queryChannels, instanciar el canal por ID y activarlo directamente
+        const channel = client.channel('messaging', cleanId);
         if (isMounted) {
           setActiveChannel(channel);
           if (onSelect) onSelect();
-          window.history.replaceState(null, '', '/mensajes');
         }
       } catch (err) {
-        console.error('Error selecting channel from URL, attempting auto-creation:', err);
+        console.error('Error seleccionando canal desde la URL:', err);
         try {
-          const parts = channelId.replace('mentoria_', '').split('_');
-          if (parts.length >= 2) {
-            const newChannel = client.channel('messaging', channelId, {
-              members: [parts[0], parts[1]]
-            });
-            await newChannel.create();
-            await newChannel.watch();
-            if (isMounted) {
-              setActiveChannel(newChannel);
-              if (onSelect) onSelect();
-              window.history.replaceState(null, '', '/mensajes');
-            }
+          const cleanId = channelId.includes(':') ? channelId.split(':')[1] : channelId;
+          const channel = client.channel('messaging', cleanId);
+          if (isMounted) {
+            setActiveChannel(channel);
+            if (onSelect) onSelect();
           }
-        } catch (createErr) {
-          console.error('Error auto-creating channel in ChannelSelector:', createErr);
+        } catch (e) {
+          console.error('Error final en selección de canal:', e);
         }
       }
     };
-    selectChannel();
 
+    selectChannel();
     return () => { isMounted = false; };
   }, [channelId, client, setActiveChannel, onSelect]);
 
