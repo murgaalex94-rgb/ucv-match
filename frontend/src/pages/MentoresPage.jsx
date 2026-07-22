@@ -82,6 +82,7 @@ export default function MentoresPage() {
   const [mentorActiveCounts, setMentorActiveCounts] = useState({});
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [calificacion, setCalificacion] = useState('');
+  const [sortBy, setSortBy] = useState('populares');
 
   const navigate = useNavigate();
 
@@ -340,7 +341,7 @@ export default function MentoresPage() {
   const visibleMentors = filteredMentors.slice(0, visibleCount);
 
   const handleClearFilters = () => {
-    setSearchTerm(''); setFacultad(''); setCarrera(''); setCalificacion(''); setFiltersApplied(false); setShowFavoritesOnly(false);
+    setSearchTerm(''); setFacultad(''); setCarrera(''); setCalificacion(''); setSortBy('populares'); setFiltersApplied(false); setShowFavoritesOnly(false);
   };
 
   const handleViewProfile = (mentor) => {
