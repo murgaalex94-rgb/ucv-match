@@ -333,12 +333,93 @@ const CustomSendButton = ({ sendMessage }) => (
   </button>
 );
 
+const userProfileCache = new Map();
+
+const getParticipantData = (otherUser, cachedProfile) => {
+  const nombreUsuario = otherUser?.nombre_usuario || cachedProfile?.nombre_usuario || '';
+  const apellidoUsuario = otherUser?.apellido_usuario || cachedProfile?.apellido_usuario || '';
+  const avatarUrl = otherUser?.avatar_url || otherUser?.image || cachedProfile?.avatar_url || null;
+
+  let displayName = '';
+
+  if (nombreUsuario || apellidoUsuario) {
+    displayName = `${nombreUsuario} ${apellidoUsuario}`.trim();
+  }
+
+  if (!displayName || displayName === 'N/A') {
+    const rawName = otherUser?.name || cachedProfile?.nombre_completo || '';
+    if (rawName && rawName !== 'N/A') {
+      displayName = rawName;
+    } else {
+      displayName = 'Usuario';
+    }
+  }
+
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .map(n => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase() || 'U';
+
+  return {
+    nombre_usuario: nombreUsuario,
+    apellido_usuario: apellidoUsuario,
+    avatar_url: avatarUrl,
+    displayName,
+    initials,
+  };
+};
+
 const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel }) => {
   const { user } = useAuth();
   const members = Object.values(channel.state?.members || {});
   const otherMember = members.find(m => m.user?.id !== user?.id);
-  const displayName = channel.data?.name || otherMember?.user?.name || 'Chat';
-  const initials = displayName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  const otherUserId = otherMember?.user?.id;
+
+  const [profile, setProfile] = useState(() => userProfileCache.get(otherUserId) || null);
+
+  useEffect(() => {
+    if (!otherUserId) return;
+    if (userProfileCache.has(otherUserId)) {
+      setProfile(userProfileCache.get(otherUserId));
+      return;
+    }
+
+    let isMounted = true;
+    const fetchProfile = async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, nombre_completo, avatar_url')
+          .eq('id', otherUserId)
+          .maybeSingle();
+
+        if (data && isMounted) {
+          const parts = (data.nombre_completo || '').trim().split(/\s+/);
+          const parsed = {
+            nombre_usuario: parts[0] || '',
+            apellido_usuario: parts.slice(1).join(' ') || '',
+            avatar_url: data.avatar_url || null,
+            nombre_completo: data.nombre_completo,
+          };
+          userProfileCache.set(otherUserId, parsed);
+          setProfile(parsed);
+        }
+      } catch (err) {
+        console.error('Error fetching member profile:', err);
+      }
+    };
+    fetchProfile();
+    return () => { isMounted = false; };
+  }, [otherUserId]);
+
+  const participant = getParticipantData(otherMember?.user, profile);
+  const displayName = participant.displayName;
+  const avatarUrl = participant.avatar_url;
+  const initials = participant.initials;
+
   const lastMessage = channel.state?.latestMessages?.[0];
   const lastMessageText = lastMessage?.text || '';
   const isMyMessage = lastMessage?.user?.id === user?.id;
@@ -355,9 +436,18 @@ const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel }) => {
         isActive ? 'bg-blue-50' : 'hover:bg-gray-50'
       }`}
     >
-      <div className="w-10 h-10 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
-        {initials}
-      </div>
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={displayName}
+          className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200"
+          onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
+        />
+      ) : (
+        <div className="w-10 h-10 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
+          {initials}
+        </div>
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline">
           <p className="text-sm font-semibold text-gray-800 truncate">{displayName}</p>
@@ -386,6 +476,47 @@ const ChatHeader = ({
   const menuRef = useRef(null);
   const [mentoriaContext, setMentoriaContext] = useState(null);
 
+  const members = Object.values(channel?.state?.members || {});
+  const otherMember = members.find(m => m.user?.id !== userId);
+  const otherUserId = otherMember?.user?.id;
+
+  const [profile, setProfile] = useState(() => userProfileCache.get(otherUserId) || null);
+
+  useEffect(() => {
+    if (!otherUserId) return;
+    if (userProfileCache.has(otherUserId)) {
+      setProfile(userProfileCache.get(otherUserId));
+      return;
+    }
+
+    let isMounted = true;
+    const fetchProfile = async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, nombre_completo, avatar_url')
+          .eq('id', otherUserId)
+          .maybeSingle();
+
+        if (data && isMounted) {
+          const parts = (data.nombre_completo || '').trim().split(/\s+/);
+          const parsed = {
+            nombre_usuario: parts[0] || '',
+            apellido_usuario: parts.slice(1).join(' ') || '',
+            avatar_url: data.avatar_url || null,
+            nombre_completo: data.nombre_completo,
+          };
+          userProfileCache.set(otherUserId, parsed);
+          setProfile(parsed);
+        }
+      } catch (err) {
+        console.error('Error fetching header member profile:', err);
+      }
+    };
+    fetchProfile();
+    return () => { isMounted = false; };
+  }, [otherUserId]);
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false);
@@ -399,9 +530,6 @@ const ChatHeader = ({
       setMentoriaContext(null);
       return;
     }
-    const members = Object.values(channel.state?.members || {});
-    const otherMember = members.find(m => m.user?.id !== userId);
-    const otherUserId = otherMember?.user?.id;
     if (!otherUserId) return;
 
     const fetchMentoria = async () => {
@@ -416,14 +544,14 @@ const ChatHeader = ({
       if (data) setMentoriaContext(data);
     };
     fetchMentoria();
-  }, [channel?.cid, userId]);
+  }, [channel?.cid, userId, otherUserId]);
 
   if (!channel) return null;
 
-  const members = Object.values(channel.state?.members || {});
-  const otherMember = members.find(m => m.user?.id !== userId);
-  const displayName = channel.data?.name || otherMember?.user?.name || 'Chat';
-  const initials = displayName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  const participant = getParticipantData(otherMember?.user, profile);
+  const displayName = participant.displayName;
+  const avatarUrl = participant.avatar_url;
+  const initials = participant.initials;
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
@@ -443,9 +571,18 @@ const ChatHeader = ({
             <ChevronLeft className="w-5 h-5 text-gray-700" />
           </button>
         )}
-        <div className="w-9 h-9 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
-          {initials}
-        </div>
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt={displayName}
+            className="w-9 h-9 rounded-full object-cover shrink-0 border border-gray-200"
+            onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-9 h-9 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
+            {initials}
+          </div>
+        )}
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-800 truncate">{displayName}</p>
           {mentoriaContext && (

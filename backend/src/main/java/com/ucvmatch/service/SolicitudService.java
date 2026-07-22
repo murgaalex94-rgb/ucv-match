@@ -89,29 +89,38 @@ public class SolicitudService {
         m.setEstado("ACTIVA");
         mentoriaRepository.save(m);
 
-        // 3. Crear el canal de Stream Chat INMEDIATAMENTE
+        // 3. Crear el canal de Stream Chat INMEDIATAMENTE con datos completos del otro participante
         String channelId = null;
         try {
             Estudiante junior = s.getJunior();
             Estudiante senior = s.getOferta().getSenior();
 
-            String juniorName = junior.getUsuario().getNombre() != null ? junior.getUsuario().getNombre() : junior.getUsuario().getEmail();
-            String seniorName = senior.getUsuario().getNombre() != null ? senior.getUsuario().getNombre() : senior.getUsuario().getEmail();
+            String juniorNombreCompleto = junior.getUsuario().getNombre() != null ? junior.getUsuario().getNombre() : junior.getUsuario().getEmail();
+            String[] juniorParts = juniorNombreCompleto.trim().split("\\s+", 2);
+            String juniorNombre = juniorParts.length > 0 ? juniorParts[0] : "Estudiante";
+            String juniorApellido = juniorParts.length > 1 ? juniorParts[1] : "";
+            String juniorAvatar = junior.getFotoUrl();
+
+            String seniorNombreCompleto = senior.getUsuario().getNombre() != null ? senior.getUsuario().getNombre() : senior.getUsuario().getEmail();
+            String[] seniorParts = seniorNombreCompleto.trim().split("\\s+", 2);
+            String seniorNombre = seniorParts.length > 0 ? seniorParts[0] : "Mentor";
+            String seniorApellido = seniorParts.length > 1 ? seniorParts[1] : "";
+            String seniorAvatar = senior.getFotoUrl();
 
             logger.info("=== STREAM CHAT DEBUG ===");
-            logger.info("Junior ID: {}, Name: {}", junior.getId(), juniorName);
-            logger.info("Senior ID: {}, Name: {}", senior.getId(), seniorName);
+            logger.info("Junior ID: {}, Name: {} {}, Avatar: {}", junior.getId(), juniorNombre, juniorApellido, juniorAvatar);
+            logger.info("Senior ID: {}, Name: {} {}, Avatar: {}", senior.getId(), seniorNombre, seniorApellido, seniorAvatar);
             logger.info("StreamChatService configured: {}", streamChatService.isConfigured());
             
             if (streamChatService.isConfigured()) {
                 channelId = streamChatService.createOrGetChannel(
                     junior.getId(),
                     senior.getId(),
-                    juniorName,
-                    seniorName
+                    juniorNombre, juniorApellido, juniorAvatar,
+                    seniorNombre, seniorApellido, seniorAvatar
                 );
-                logger.info("Stream Chat channel created/retrieved: {} for mentorship between {} and {}", 
-                    channelId, juniorName, seniorName);
+                logger.info("Stream Chat channel created/retrieved: {} for mentorship between {} {} and {} {}", 
+                    channelId, juniorNombre, juniorApellido, seniorNombre, seniorApellido);
             } else {
                 logger.warn("Stream Chat NOT configured - skipping channel creation");
                 logger.warn("STREAM_API_KEY present: {}", System.getenv("STREAM_API_KEY") != null);

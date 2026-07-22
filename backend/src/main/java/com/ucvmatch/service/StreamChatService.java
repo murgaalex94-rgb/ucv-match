@@ -46,15 +46,19 @@ public class StreamChatService {
 
     /**
      * Crea o recupera un canal de chat entre dos usuarios
-     * @param userId1 ID del primer usuario (estudiante)
-     * @param userId2 ID del segundo usuario (mentor)
-     * @param userName1 Nombre del primer usuario
-     * @param userName2 Nombre del segundo usuario
-     * @return El ID del canal creado o existente
      */
     public String createOrGetChannel(UUID userId1, UUID userId2, String userName1, String userName2) {
+        return createOrGetChannel(userId1, userId2, userName1, "", null, userName2, "", null);
+    }
+
+    /**
+     * Crea o recupera un canal de chat entre dos usuarios enviando datos detallados de participante
+     */
+    public String createOrGetChannel(UUID userId1, UUID userId2, 
+                                     String nombre1, String apellido1, String avatar1,
+                                     String nombre2, String apellido2, String avatar2) {
         logger.info("=== createOrGetChannel START ===");
-        logger.info("User1: {} ({}), User2: {} ({})", userId1, userName1, userId2, userName2);
+        logger.info("User1: {} ({} {}), User2: {} ({} {})", userId1, nombre1, apellido1, userId2, nombre2, avatar2);
         logger.info("isConfigured(): {}", isConfigured());
         
         if (!isConfigured()) {
@@ -63,17 +67,14 @@ public class StreamChatService {
         }
 
         try {
-            // Crear usuarios en Stream Chat si no existen
-            logger.info("Upserting users...");
-            upsertUser(userId1.toString(), userName1);
-            upsertUser(userId2.toString(), userName2);
+            // Crear/actualizar usuarios en Stream Chat con datos de nombre, apellido y avatar
+            logger.info("Upserting users with participant details...");
+            upsertUser(userId1.toString(), nombre1, apellido1, avatar1);
+            upsertUser(userId2.toString(), nombre2, apellido2, avatar2);
 
-            // Generar un ID único para el canal basado en los IDs de los usuarios
             String channelId = generateChannelId(userId1, userId2);
             logger.info("Generated channelId: {}", channelId);
 
-            // Verificar si el canal ya existe
-            logger.info("Checking if channel exists...");
             boolean exists = channelExists(channelId);
             logger.info("Channel exists: {}", exists);
             
@@ -82,7 +83,6 @@ public class StreamChatService {
                 return channelId;
             }
 
-            // Crear el canal con ambos usuarios como miembros
             logger.info("Creating new channel...");
             createChannel(channelId, userId1.toString(), userId2.toString());
             logger.info("Created new channel: {}", channelId);
@@ -98,17 +98,35 @@ public class StreamChatService {
      * Crea o actualiza un usuario en Stream Chat usando REST API
      */
     private void upsertUser(String userId, String userName) {
+        upsertUser(userId, userName, "", null);
+    }
+
+    private void upsertUser(String userId, String nombreUsuario, String apellidoUsuario, String avatarUrl) {
         try {
             String url = STREAM_API_BASE_URL + "/users";
-            logger.debug("Upserting user: {} ({})", userId, userName);
+            
+            String fullNombre = ((nombreUsuario != null ? nombreUsuario : "") + " " + (apellidoUsuario != null ? apellidoUsuario : "")).trim();
+            if (fullNombre.isEmpty()) fullNombre = "Usuario";
+
+            logger.debug("Upserting user: {} ({}) avatar: {}", userId, fullNombre, avatarUrl);
             
             JsonObject userData = new JsonObject();
+            JsonObject usersMap = new JsonObject();
             JsonObject userObject = new JsonObject();
+            
             userObject.addProperty("id", userId);
-            userObject.addProperty("name", userName);
+            userObject.addProperty("name", fullNombre);
+            userObject.addProperty("nombre_usuario", nombreUsuario != null ? nombreUsuario : "");
+            userObject.addProperty("apellido_usuario", apellidoUsuario != null ? apellidoUsuario : "");
             userObject.addProperty("role", "user");
             
-            userData.add(userId, userObject);
+            if (avatarUrl != null && !avatarUrl.trim().isEmpty()) {
+                userObject.addProperty("image", avatarUrl);
+                userObject.addProperty("avatar_url", avatarUrl);
+            }
+            
+            usersMap.add(userId, userObject);
+            userData.add("users", usersMap);
             
             RequestBody body = RequestBody.create(
                 MediaType.parse("application/json"), 

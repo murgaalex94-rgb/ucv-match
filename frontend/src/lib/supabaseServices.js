@@ -469,9 +469,10 @@ export const getConversaciones = async (userId) => {
     .from('mentorias')
     .select(`
       id,
+      materia,
+      estado,
       estudiante:estudiante_id(id, nombre_completo, avatar_url),
-      mentor:mentor_id(id, nombre_completo, avatar_url),
-      materia
+      mentor:mentor_id(id, nombre_completo, avatar_url)
     `)
     .or(`estudiante_id.eq.${userId},mentor_id.eq.${userId}`)
     .in('estado', ['Activa', 'Pendiente'])
@@ -480,11 +481,16 @@ export const getConversaciones = async (userId) => {
   if (!mentorias) return []
 
   const otrasPersonas = mentorias.map(m => {
-    const otro = m.estudiante.id === userId ? m.mentor : m.estudiante
+    const otro = m.estudiante?.id === userId ? m.mentor : m.estudiante
+    const parts = (otro?.nombre_completo || '').trim().split(/\s+/)
+    const nombre_usuario = parts[0] || ''
+    const apellido_usuario = parts.slice(1).join(' ') || ''
     return {
-      id: otro.id,
-      name: otro.nombre_completo,
-      avatar: otro.avatar_url || otro.nombre_completo?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+      id: otro?.id,
+      nombre_usuario,
+      apellido_usuario,
+      avatar_url: otro?.avatar_url || null,
+      name: `${nombre_usuario} ${apellido_usuario}`.trim() || 'Usuario',
       subject: m.materia,
       mentoriaId: m.id
     }
@@ -493,7 +499,7 @@ export const getConversaciones = async (userId) => {
   const unique = []
   const seen = new Set()
   otrasPersonas.forEach(p => {
-    if (!seen.has(p.id)) {
+    if (p.id && !seen.has(p.id)) {
       seen.add(p.id)
       unique.push(p)
     }
