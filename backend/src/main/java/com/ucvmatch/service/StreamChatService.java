@@ -35,6 +35,10 @@ public class StreamChatService {
                 .writeTimeout(30, TimeUnit.SECONDS)
                 .build();
         
+        logger.info("=== STREAM CHAT SERVICE INIT ===");
+        logger.info("API Key configured: {} (length: {})", apiKey != null && !apiKey.isEmpty(), apiKey != null ? apiKey.length() : 0);
+        logger.info("API Secret configured: {} (length: {})", apiSecret != null && !apiSecret.isEmpty(), apiSecret != null ? apiSecret.length() : 0);
+        
         if (apiKey == null || apiKey.isEmpty() || apiSecret == null || apiSecret.isEmpty()) {
             logger.warn("Stream Chat API credentials not configured. Chat functionality will be disabled.");
         }
@@ -49,26 +53,37 @@ public class StreamChatService {
      * @return El ID del canal creado o existente
      */
     public String createOrGetChannel(UUID userId1, UUID userId2, String userName1, String userName2) {
+        logger.info("=== createOrGetChannel START ===");
+        logger.info("User1: {} ({}), User2: {} ({})", userId1, userName1, userId2, userName2);
+        logger.info("isConfigured(): {}", isConfigured());
+        
         if (!isConfigured()) {
-            logger.error("Stream Chat client not initialized");
+            logger.error("Stream Chat client not initialized - credentials missing");
             throw new IllegalStateException("Stream Chat not configured");
         }
 
         try {
             // Crear usuarios en Stream Chat si no existen
+            logger.info("Upserting users...");
             upsertUser(userId1.toString(), userName1);
             upsertUser(userId2.toString(), userName2);
 
             // Generar un ID único para el canal basado en los IDs de los usuarios
             String channelId = generateChannelId(userId1, userId2);
+            logger.info("Generated channelId: {}", channelId);
 
             // Verificar si el canal ya existe
-            if (channelExists(channelId)) {
+            logger.info("Checking if channel exists...");
+            boolean exists = channelExists(channelId);
+            logger.info("Channel exists: {}", exists);
+            
+            if (exists) {
                 logger.info("Channel already exists: {}", channelId);
                 return channelId;
             }
 
             // Crear el canal con ambos usuarios como miembros
+            logger.info("Creating new channel...");
             createChannel(channelId, userId1.toString(), userId2.toString());
             logger.info("Created new channel: {}", channelId);
             return channelId;
@@ -85,6 +100,7 @@ public class StreamChatService {
     private void upsertUser(String userId, String userName) {
         try {
             String url = STREAM_API_BASE_URL + "/users";
+            logger.debug("Upserting user: {} ({})", userId, userName);
             
             JsonObject userData = new JsonObject();
             JsonObject userObject = new JsonObject();
@@ -108,10 +124,10 @@ public class StreamChatService {
                     .build();
             
             try (Response response = httpClient.newCall(request).execute()) {
+                String responseBody = response.body() != null ? response.body().string() : "null";
+                logger.info("Upsert user {} - HTTP {}: {}", userId, response.code(), responseBody);
                 if (!response.isSuccessful()) {
-                    logger.warn("Failed to upsert user {}: {}", userId, response.code());
-                } else {
-                    logger.debug("Upserted user: {} - {}", userId, userName);
+                    logger.warn("Failed to upsert user {}: HTTP {}", userId, response.code());
                 }
             }
         } catch (IOException e) {
@@ -125,6 +141,7 @@ public class StreamChatService {
     private boolean channelExists(String channelId) {
         try {
             String url = STREAM_API_BASE_URL + "/channels/messaging/" + channelId;
+            logger.debug("Checking channel existence: {}", url);
             
             Request request = new Request.Builder()
                     .url(url)
@@ -134,10 +151,11 @@ public class StreamChatService {
                     .build();
             
             try (Response response = httpClient.newCall(request).execute()) {
+                logger.info("Channel exists check - HTTP {}: {}", response.code(), channelId);
                 return response.isSuccessful();
             }
         } catch (IOException e) {
-            logger.debug("Channel does not exist: {}", channelId);
+            logger.debug("Channel does not exist (exception): {}", channelId, e);
             return false;
         }
     }
@@ -147,6 +165,7 @@ public class StreamChatService {
      */
     private void createChannel(String channelId, String userId1, String userId2) throws IOException {
         String url = STREAM_API_BASE_URL + "/channels/messaging/" + channelId;
+        logger.info("Creating channel at: {}", url);
         
         JsonObject channelData = new JsonObject();
         channelData.addProperty("created_by", userId1);
@@ -170,8 +189,10 @@ public class StreamChatService {
                 .build();
         
         try (Response response = httpClient.newCall(request).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "null";
+            logger.info("Create channel response - HTTP {}: {}", response.code(), responseBody);
             if (!response.isSuccessful()) {
-                throw new IOException("Failed to create channel: " + response.code());
+                throw new IOException("Failed to create channel: HTTP " + response.code() + " - " + responseBody);
             }
         }
     }

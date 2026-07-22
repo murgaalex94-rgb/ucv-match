@@ -98,6 +98,11 @@ public class SolicitudService {
             String juniorName = junior.getUsuario().getNombre() != null ? junior.getUsuario().getNombre() : junior.getUsuario().getEmail();
             String seniorName = senior.getUsuario().getNombre() != null ? senior.getUsuario().getNombre() : senior.getUsuario().getEmail();
 
+            logger.info("=== STREAM CHAT DEBUG ===");
+            logger.info("Junior ID: {}, Name: {}", junior.getId(), juniorName);
+            logger.info("Senior ID: {}, Name: {}", senior.getId(), seniorName);
+            logger.info("StreamChatService configured: {}", streamChatService.isConfigured());
+            
             if (streamChatService.isConfigured()) {
                 channelId = streamChatService.createOrGetChannel(
                     junior.getId(),
@@ -108,7 +113,9 @@ public class SolicitudService {
                 logger.info("Stream Chat channel created/retrieved: {} for mentorship between {} and {}", 
                     channelId, juniorName, seniorName);
             } else {
-                logger.warn("Stream Chat not configured, skipping channel creation");
+                logger.warn("Stream Chat NOT configured - skipping channel creation");
+                logger.warn("STREAM_API_KEY present: {}", System.getenv("STREAM_API_KEY") != null);
+                logger.warn("STREAM_API_SECRET present: {}", System.getenv("STREAM_API_SECRET") != null);
             }
         } catch (Exception e) {
             logger.error("Error creating Stream Chat channel for mentorship", e);
