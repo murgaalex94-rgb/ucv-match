@@ -115,6 +115,7 @@ function MentoriasPage() {
         .from('mentorias')
         .select(`
           *,
+          stream_chat_channel_id,
           estudiante:estudiante_id(nombre_completo, avatar_url, carrera),
           mentor:mentor_id(nombre_completo, avatar_url, carrera)
         `)
