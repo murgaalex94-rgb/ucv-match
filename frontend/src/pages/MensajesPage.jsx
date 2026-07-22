@@ -426,10 +426,22 @@ const getParticipantData = (otherUser, cachedProfile, mentoriaContext, userId) =
 const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel }) => {
   const { user } = useAuth();
   const members = Object.values(channel.state?.members || {});
-  const otherMember = members.find(m => m.user?.id !== user?.id);
-  const otherUserId = otherMember?.user?.id;
+  let otherMember = members.find(m => m.user?.id !== user?.id);
 
-  const [profile, setProfile] = useState(() => userProfileCache.get(otherUserId) || null);
+  if (!otherMember && Array.isArray(channel.data?.members)) {
+    const memList = channel.data.members;
+    const found = memList.find(m => {
+      const id = typeof m === 'string' ? m : m?.user_id || m?.user?.id;
+      return id && id !== user?.id;
+    });
+    if (found) {
+      const targetId = typeof found === 'string' ? found : (found.user_id || found.user?.id);
+      otherMember = { user: { id: targetId } };
+    }
+  }
+
+  const otherUserId = otherMember?.user?.id;
+  const [profile, setProfile] = useState(() => (otherUserId ? userProfileCache.get(otherUserId) : null));
 
   useEffect(() => {
     if (!otherUserId) return;
@@ -527,12 +539,23 @@ const ChatHeader = ({
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
   const [mentoriaContext, setMentoriaContext] = useState(null);
-
   const members = Object.values(channel?.state?.members || {});
-  const otherMember = members.find(m => m.user?.id !== userId);
-  const otherUserId = otherMember?.user?.id;
+  let otherMember = members.find(m => m.user?.id !== userId);
 
-  const [profile, setProfile] = useState(() => userProfileCache.get(otherUserId) || null);
+  if (!otherMember && Array.isArray(channel?.data?.members)) {
+    const memList = channel.data.members;
+    const found = memList.find(m => {
+      const id = typeof m === 'string' ? m : m?.user_id || m?.user?.id;
+      return id && id !== userId;
+    });
+    if (found) {
+      const targetId = typeof found === 'string' ? found : (found.user_id || found.user?.id);
+      otherMember = { user: { id: targetId } };
+    }
+  }
+
+  const otherUserId = otherMember?.user?.id;
+  const [profile, setProfile] = useState(() => (otherUserId ? userProfileCache.get(otherUserId) : null));
 
   useEffect(() => {
     if (!otherUserId) return;
@@ -582,22 +605,43 @@ const ChatHeader = ({
       setMentoriaContext(null);
       return;
     }
-    if (!otherUserId) return;
 
     const fetchMentoria = async () => {
-      const { data } = await supabase
+      let targetId = otherUserId;
+      let query = supabase
         .from('mentorias')
         .select(`
           id, estado, materia, fecha_solicitud, estudiante_id, mentor_id,
           estudiante:estudiante_id(id, nombre_completo, avatar_url),
           mentor:mentor_id(id, nombre_completo, avatar_url)
-        `)
-        .or(`and(estudiante_id.eq.${userId},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${userId},estudiante_id.eq.${otherUserId})`)
+        `);
+
+      if (targetId) {
+        query = query.or(`and(estudiante_id.eq.${userId},mentor_id.eq.${targetId}),and(mentor_id.eq.${userId},estudiante_id.eq.${targetId})`);
+      } else {
+        query = query.or(`estudiante_id.eq.${userId},mentor_id.eq.${userId}`);
+      }
+
+      const { data } = await query
         .in('estado', ['Pendiente', 'Activa'])
         .order('fecha_solicitud', { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (data) setMentoriaContext(data);
+
+      if (data) {
+        setMentoriaContext(data);
+        if (!targetId) {
+          const otherPerson = data.estudiante_id === userId ? data.mentor : data.estudiante;
+          if (otherPerson?.nombre_completo) {
+            setProfile({
+              nombre_usuario: otherPerson.nombre_completo.split(' ')[0] || '',
+              apellido_usuario: otherPerson.nombre_completo.split(' ').slice(1).join(' ') || '',
+              avatar_url: otherPerson.avatar_url || null,
+              nombre_completo: otherPerson.nombre_completo,
+            });
+          }
+        }
+      }
     };
     fetchMentoria();
   }, [channel?.cid, userId, otherUserId]);
@@ -1361,7 +1405,7 @@ export default function MensajesPage() {
                 <ChannelList
                   key={channelListRefresh}
                   filters={{ members: { $in: [user.id] } }}
-                  sort={{ updated_at: -1, last_message_at: -1 }}
+                  sort={[{ last_message_at: -1 }, { updated_at: -1 }]}
                   options={{ limit: 50, state: true }}
                   Preview={CustomChannelPreview}
                 />
