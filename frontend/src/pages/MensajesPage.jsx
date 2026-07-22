@@ -226,11 +226,17 @@ const ChannelSelector = ({ channelId, onSelect }) => {
       try {
         const cleanId = channelId.includes(':') ? channelId.split(':')[1] : channelId;
 
-        // 1. Buscar si el canal existe en las conversaciones cargadas del cliente
-        const existingChannels = await client.queryChannels({
-          type: 'messaging',
-          id: cleanId,
-        });
+        // 1. Buscar si el canal existe en las conversaciones cargadas del cliente (incluyendo miembros para evitar Error 70)
+        let existingChannels = [];
+        try {
+          existingChannels = await client.queryChannels({
+            type: 'messaging',
+            id: cleanId,
+            members: { $in: [client.userID] },
+          });
+        } catch (queryErr) {
+          console.warn('Advertencia en queryChannels con filtro de miembros:', queryErr);
+        }
 
         if (existingChannels && existingChannels.length > 0) {
           if (isMounted) {
@@ -1016,23 +1022,10 @@ export default function MensajesPage() {
         const streamUserId = authUser.id;
         const displayName = user?.nombre || authUser.email || 'Usuario';
 
-        // Check sessionStorage for cached token
+        // Check sessionStorage for cached token (limpiar caché previo para garantizar rol admin)
         const storageKey = `stream_token_${streamUserId}`;
+        sessionStorage.removeItem(storageKey);
         let token = null;
-        
-        try {
-          const cached = sessionStorage.getItem(storageKey);
-          if (cached) {
-            const { token: cachedToken, expiresAt } = JSON.parse(cached);
-            // Check if token is still valid (with 5 min buffer)
-            if (cachedToken && expiresAt && Date.now() < expiresAt - 5 * 60 * 1000) {
-              token = cachedToken;
-              console.log('[Stream] Using cached token');
-            }
-          }
-        } catch (e) {
-          console.warn('[Stream] Failed to parse cached token:', e);
-        }
 
         // Fetch new token if no valid cached token
         if (!token) {

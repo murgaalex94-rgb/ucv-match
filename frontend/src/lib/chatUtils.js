@@ -25,6 +25,10 @@ export const createOrGetStreamChannel = async (targetUserId, targetUserName = ''
   const accessToken = sess.data.session?.access_token;
   if (!accessToken) throw new Error('No hay sesión activa');
 
+  // Limpiar token en caché para garantizar que se obtenga el nuevo token con rol admin
+  const storageKey = `stream_token_${authUser.id}`;
+  sessionStorage.removeItem(storageKey);
+
   const response = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
     method: 'POST',
     headers: {
