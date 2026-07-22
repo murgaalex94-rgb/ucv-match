@@ -75,6 +75,8 @@ export default function MentoresPage() {
   const [favoritos, setFavoritos] = useState(new Set());
   const [favoriteLoading, setFavoriteLoading] = useState(new Set());
   const [errorMsg, setErrorMsg] = useState('');
+  const [activeSolicitud, setActiveSolicitud] = useState(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [userName, setUserName] = useState('');
   const [userInitials, setUserInitials] = useState('U');
   const [userRol, setUserRol] = useState('');
@@ -378,6 +380,7 @@ export default function MentoresPage() {
   const handleSolicitarMentor = async (mentor) => {
     setSaving(true);
     setErrorMsg('');
+    setActiveSolicitud(null);
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
 
@@ -406,6 +409,7 @@ export default function MentoresPage() {
         .maybeSingle();
 
       if (existing) {
+        setActiveSolicitud({ id: existing.id, mentorId: mentor.id, estado: existing.estado });
         setErrorMsg('Ya tienes una solicitud ' + (existing.estado === 'Activa' ? 'activa' : 'pendiente') + ' con este mentor.');
         setSaving(false);
         return;
@@ -431,6 +435,29 @@ export default function MentoresPage() {
     } catch (err) {
       console.error('Error requesting mentor:', err);
       setErrorMsg('Error: ' + (err.message || err.details || err.hint || 'Error al procesar la solicitud'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmCancelSolicitud = async () => {
+    if (!activeSolicitud) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('mentorias')
+        .update({ estado: 'Cancelada' })
+        .eq('id', activeSolicitud.id);
+
+      if (error) throw error;
+
+      setErrorMsg('');
+      setActiveSolicitud(null);
+      setShowCancelModal(false);
+      await fetchMentores();
+    } catch (err) {
+      console.error('Error al cancelar solicitud:', err);
+      setErrorMsg('Error al cancelar la solicitud. Intenta de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -567,9 +594,19 @@ export default function MentoresPage() {
 
           <main>
             {errorMsg && (
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span className="text-sm">{errorMsg}</span>
+              <div className="flex items-center justify-between gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
+                <div className="flex items-center gap-2 min-w-0">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="text-sm truncate">{errorMsg}</span>
+                </div>
+                {activeSolicitud && (
+                  <button
+                    onClick={() => setShowCancelModal(true)}
+                    className="px-3 py-1.5 text-xs font-semibold text-red-600 border border-red-400 hover:bg-red-100 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                  >
+                    Cancelar solicitud
+                  </button>
+                )}
               </div>
             )}
 
@@ -782,6 +819,30 @@ export default function MentoresPage() {
   </button>
 )}
             <p className="text-xs text-gray-400 text-center mt-2">¡Aprende con los mejores!</p>
+          </div>
+        </div>
+      )}
+
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCancelModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-[95%] max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">Cancelar solicitud</h3>
+            <p className="text-sm text-gray-600 mb-6">¿Estás seguro de que quieres cancelar esta solicitud?</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="flex-1 px-4 py-2 min-h-[44px] text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                No, volver
+              </button>
+              <button
+                onClick={handleConfirmCancelSolicitud}
+                disabled={saving}
+                className="flex-1 px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {saving ? 'Cancelando...' : 'Sí, cancelar'}
+              </button>
+            </div>
           </div>
         </div>
       )}

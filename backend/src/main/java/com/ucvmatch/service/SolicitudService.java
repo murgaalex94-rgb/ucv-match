@@ -192,4 +192,16 @@ public class SolicitudService {
         s.setMensajeRechazo(motivo);
         return solicitudRepository.save(s);
     }
+
+    @Transactional
+    public Solicitud cancelar(UUID solicitudId, UUID juniorId) {
+        Solicitud s = solicitudRepository.findById(solicitudId)
+                .orElseThrow(() -> new IllegalArgumentException("Solicitud no encontrada"));
+        if (!s.getJunior().getId().equals(juniorId)) {
+            throw new IllegalArgumentException("No tienes permiso para cancelar esta solicitud");
+        }
+        s.setEstado("CANCELADA");
+        s.setFechaRespuesta(LocalDateTime.now());
+        return solicitudRepository.save(s);
+    }
 }
