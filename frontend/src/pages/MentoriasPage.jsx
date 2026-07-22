@@ -304,11 +304,23 @@ function MentoriasPage() {
               { id: authUser.id, name: authUser.user_metadata?.nombre_completo || authUser.email || '' },
               tokenData.token
             );
-            const channelId = [authUser.id, session.estudiante_id].sort().map(id => id.replace(/-/g, '').slice(0, 16)).join('-');
+            // Usar mismo formato de channelId que el backend: mentoria_<uuid1>_<uuid2> (ordenado)
+            const id1 = authUser.id;
+            const id2 = session.estudiante_id;
+            const sorted = [id1, id2].sort();
+            const channelId = `mentoria_${sorted[0]}_${sorted[1]}`;
             const channel = chatClient.channel('messaging', channelId, {
               members: [authUser.id, session.estudiante_id]
             });
             await channel.create();
+            
+            // Guardar channelId en la mentoría via backend (el backend ya lo hace en SolicitudService.aceptar)
+            // Pero por si acaso, también lo guardamos aquí
+            await supabase
+              .from('mentorias')
+              .update({ stream_chat_channel_id: channelId })
+              .eq('id', session.id);
+            
             await chatClient.disconnectUser();
           }
         }
@@ -492,14 +504,26 @@ function MentoriasPage() {
         tokenData.token
       );
 
-      const channelId = [authUser.id, otherUserId].sort().map(id => id.replace(/-/g, '').slice(0, 16)).join('-');
+      // Usar el channelId que ya creó el backend y guardó en la BD
+      let channelId = session.streamChatChannelId;
+      
+      // Si no existe en BD (compatibilidad), generarlo con el mismo formato que el backend
+      if (!channelId) {
+        const id1 = authUser.id;
+        const id2 = otherUserId;
+        const sorted = [id1, id2].sort();
+        channelId = `mentoria_${sorted[0]}_${sorted[1]}`;
+      }
+
       const channel = chatClient.channel('messaging', channelId, {
         members: [authUser.id, otherUserId]
       });
-      await channel.create();
-
+      await channel.watch(); // watch en lugar de create para no duplicar
+      
       await chatClient.disconnectUser();
-      navigate('/mensajes');
+      
+      // Navegar CON el channelId en la URL para auto-seleccionarlo
+      navigate(`/mensajes?channel=${channelId}`);
     } catch (err) {
       console.error('Error opening chat:', err);
       navigate('/mensajes');

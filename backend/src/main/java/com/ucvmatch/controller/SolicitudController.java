@@ -70,7 +70,13 @@ public class SolicitudController {
         Estudiante senior = getCurrentEstudiante();
         if (senior == null) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         try {
-            return ResponseEntity.ok(solicitudService.aceptar(id, senior.getId()));
+            Mentoria mentoria = solicitudService.aceptar(id, senior.getId());
+            return ResponseEntity.ok(Map.of(
+                "id", mentoria.getId(),
+                "estado", mentoria.getEstado(),
+                "streamChatChannelId", mentoria.getStreamChatChannelId(),
+                "solicitud", mentoria.getSolicitud()
+            ));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

@@ -733,8 +733,21 @@ export default function MensajesPage() {
   const maxRetries = 3;
   const initChatRef = useRef(null);
   const [mentoriaBlockedMsg, setMentoriaBlockedMsg] = useState('');
+  // Trigger para refrescar ChannelList cuando se crea un canal nuevo
+  const [channelListRefresh, setChannelListRefresh] = useState(0);
 
   const esMentor = user?.rol === 'Mentor' || user?.user_metadata?.rol === 'Mentor';
+
+  // Refrescar ChannelList cuando se navega con un channelId nuevo (canal recién creado)
+  useEffect(() => {
+    if (channelFromUrl && chatClient) {
+      // Pequeño delay para dar tiempo a que Stream propague el canal
+      const timer = setTimeout(() => {
+        setChannelListRefresh(prev => prev + 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [channelFromUrl, chatClient]);
 
   useEffect(() => {
     if (!activeChannel || !user) return;
@@ -1108,9 +1121,10 @@ export default function MensajesPage() {
               </div>
               <div className="flex-1 overflow-y-auto">
                 <ChannelList
+                  key={channelListRefresh}
                   filters={{ members: { $in: [user.id] }, member_count: { $gt: 1 } }}
                   sort={{ last_message_at: -1 }}
-                  options={{ limit: 5 }}
+                  options={{ limit: 50 }}
                   Preview={CustomChannelPreview}
                 />
               </div>
