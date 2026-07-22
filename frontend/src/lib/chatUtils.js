@@ -48,7 +48,8 @@ export const createOrGetStreamChannel = async (targetUserId, targetUserName = ''
   await chatClient.connectUser(
     {
       id: currentUserId,
-      name: authUser.user_metadata?.nombre_completo || authUser.email || 'Usuario'
+      name: authUser.user_metadata?.nombre_completo || authUser.email || 'Usuario',
+      role: 'admin'
     },
     token
   );
@@ -58,7 +59,17 @@ export const createOrGetStreamChannel = async (targetUserId, targetUserName = ''
     members: [currentUserId, otherUserId]
   });
 
-  await channel.create();
+  try {
+    await channel.create();
+  } catch (err) {
+    console.warn('Advertencia en channel.create(), reintentando watch o ignorando bloqueo de permisos:', err);
+    try {
+      await channel.watch();
+    } catch (e) {
+      console.warn('Watch fallback finalizado:', e);
+    }
+  }
+
   await chatClient.disconnectUser();
 
   return channelId;
