@@ -16,6 +16,12 @@ body {
   --str-chat__primary-text-color: #1a1a2e;
   --str-chat__secondary-text-color: #6b7280;
 
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  overflow: hidden !important;
+
   /* Outgoing (user) bubble: dark blue */
   --str-chat__chat-bg-outgoing: #0f2a5c;
   --str-chat__chat-text-outgoing: #ffffff;

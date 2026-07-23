@@ -100,10 +100,10 @@ export default function Sidebar({ hideMobileMenu = false }) {
       {!hideMobileMenu && (
         <button
           onClick={() => setMobileOpen(true)}
-          className="lg:hidden fixed top-4 right-4 z-50 bg-white shadow-lg rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-50 transition-colors"
+          className="lg:hidden fixed top-3 right-3 z-50 bg-white border border-gray-200 shadow-md rounded-full w-9 h-9 flex items-center justify-center hover:bg-gray-50 transition-colors"
           aria-label="Abrir menú"
         >
-          <Menu className="w-5 h-5 text-gray-700" />
+          <Menu className="w-4 h-4 text-gray-700" />
         </button>
       )}
 

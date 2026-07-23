@@ -409,7 +409,7 @@ const getParticipantData = (otherUser, cachedProfile, mentoriaContext, userId) =
   };
 };
 
-const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel, setMobileView }) => {
+const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel, setMobileView, searchTerm = '' }) => {
   const { user } = useAuth();
   const [channelMembers, setChannelMembers] = useState(() => Object.values(channel?.state?.members || []));
 
@@ -510,6 +510,14 @@ const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel, setMob
   const previewText = lastMessageText
     ? (isMyMessage ? `Tú: ${lastMessageText}` : lastMessageText)
     : (lastMessage?.attachments?.length ? '📷 Archivo enviado' : 'Sin mensajes aún');
+
+  if (searchTerm && searchTerm.trim()) {
+    const term = searchTerm.trim().toLowerCase();
+    const nameMatch = displayName.toLowerCase().includes(term);
+    const msgMatch = previewText.toLowerCase().includes(term);
+    if (!nameMatch && !msgMatch) return null;
+  }
+
   const truncatedPreview = previewText.length > 42 ? previewText.slice(0, 42) + '...' : previewText;
   const isActive = activeChannel?.cid === channel.cid;
 
@@ -1051,6 +1059,14 @@ export default function MensajesPage() {
 
   const esMentor = user?.rol === 'Mentor' || user?.user_metadata?.rol === 'Mentor';
 
+  const channelFilters = useMemo(() => {
+    if (!user?.id) return null;
+    return { type: 'messaging', members: { $in: [user.id] } };
+  }, [user?.id]);
+
+  const channelSort = useMemo(() => ({ updated_at: -1, last_message_at: -1 }), []);
+  const channelOptions = useMemo(() => ({ limit: 50, state: true, watch: true }), []);
+
   useEffect(() => {
     if (!activeChannel || !user) return;
     setMentoriaBlockedMsg('');
@@ -1435,8 +1451,8 @@ export default function MensajesPage() {
       <Sidebar hideMobileMenu={mobileView === 'chat'} />
 
       <div className="flex-1 lg:ml-64 flex flex-col h-full overflow-hidden ml-0 relative">
-        <div className={`px-4 lg:px-8 py-3 lg:py-4 border-b lg:border-none border-gray-200 bg-white lg:bg-transparent ${mobileView === 'chat' ? 'hidden lg:block' : 'block'}`}>
-          <div className="flex justify-between items-center">
+        <div className={`px-4 py-3 lg:px-8 lg:py-4 border-b lg:border-none border-gray-200 bg-white lg:bg-transparent ${mobileView === 'chat' ? 'hidden lg:block' : 'block'}`}>
+          <div className="flex justify-between items-center pr-11 lg:pr-0">
             <div>
               <h1 className="text-xl lg:text-2xl font-bold text-gray-800">Mensajes</h1>
               <p className="hidden sm:block text-gray-500 text-sm mt-0.5">Chatea con mentores y estudiantes.</p>
@@ -1466,13 +1482,22 @@ export default function MensajesPage() {
                   />
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto">
-                <ChannelList
-                  filters={{ type: 'messaging', members: { $in: [user.id] } }}
-                  sort={{ updated_at: -1, last_message_at: -1 }}
-                  options={{ limit: 50, state: true, watch: true }}
-                  Preview={(props) => <CustomChannelPreview {...props} setMobileView={setMobileView} activeChannel={activeChannel} />}
-                />
+              <div className="flex-1 overflow-y-auto min-h-0">
+                {channelFilters && (
+                  <ChannelList
+                    filters={channelFilters}
+                    sort={channelSort}
+                    options={channelOptions}
+                    Preview={(props) => (
+                      <CustomChannelPreview
+                        {...props}
+                        setMobileView={setMobileView}
+                        activeChannel={activeChannel}
+                        searchTerm={searchTerm}
+                      />
+                    )}
+                  />
+                )}
               </div>
             </div>
 
