@@ -1056,6 +1056,8 @@ export default function MensajesPage() {
   const maxRetries = 3;
   const initChatRef = useRef(null);
   const [mentoriaBlockedMsg, setMentoriaBlockedMsg] = useState('');
+  const [manualChannels, setManualChannels] = useState([]);
+  const [manualChannelsLoading, setManualChannelsLoading] = useState(true);
 
   const esMentor = user?.rol === 'Mentor' || user?.user_metadata?.rol === 'Mentor';
 
@@ -1066,6 +1068,45 @@ export default function MensajesPage() {
 
   const channelSort = useMemo(() => ({ updated_at: -1, last_message_at: -1 }), []);
   const channelOptions = useMemo(() => ({ limit: 50, state: true, watch: true }), []);
+
+  // Manual channel query for mobile — bypasses ChannelList CSS issues
+  useEffect(() => {
+    if (!chatClient || !channelFilters) return;
+    let cancelled = false;
+    const fetchChannels = async () => {
+      setManualChannelsLoading(true);
+      try {
+        const channels = await chatClient.queryChannels(
+          channelFilters,
+          { updated_at: -1, last_message_at: -1 },
+          { limit: 50, state: true, watch: true }
+        );
+        if (!cancelled) {
+          setManualChannels(channels);
+          setManualChannelsLoading(false);
+        }
+      } catch (err) {
+        console.error('Manual channel query error:', err);
+        if (!cancelled) setManualChannelsLoading(false);
+      }
+    };
+    fetchChannels();
+
+    // Listen for new channels / channel updates
+    const handleChannelEvent = () => { fetchChannels(); };
+    chatClient.on('notification.added_to_channel', handleChannelEvent);
+    chatClient.on('notification.message_new', handleChannelEvent);
+    chatClient.on('channel.updated', handleChannelEvent);
+    chatClient.on('message.new', handleChannelEvent);
+
+    return () => {
+      cancelled = true;
+      chatClient.off('notification.added_to_channel', handleChannelEvent);
+      chatClient.off('notification.message_new', handleChannelEvent);
+      chatClient.off('channel.updated', handleChannelEvent);
+      chatClient.off('message.new', handleChannelEvent);
+    };
+  }, [chatClient, channelFilters]);
 
   useEffect(() => {
     if (!activeChannel || !user) return;
@@ -1467,7 +1508,7 @@ export default function MensajesPage() {
           {channelFromUrl && (
             <ChannelSelector channelId={channelFromUrl} setMobileView={setMobileView} />
           )}
-          <div className="flex flex-1 overflow-hidden relative" style={{ height: 'calc(100% - 0px)' }}>
+          <div className="flex flex-1 overflow-hidden relative" style={{ height: '100%' }}>
             {/* LEFT PANEL - CHANNEL LIST */}
             <div
               className={`w-full lg:w-96 bg-white border-r border-gray-200 flex flex-col ${mobileView === 'chat' ? 'hidden lg:flex' : 'flex'}`}
@@ -1485,26 +1526,42 @@ export default function MensajesPage() {
                   />
                 </div>
               </div>
-              <div className="px-4 pt-2 pb-1 shrink-0">
-                <h2 className="text-base font-bold text-gray-800">Chats</h2>
+
+              {/* MOBILE: Manual channel list (bypasses ChannelList CSS issues) */}
+              <div className="flex-1 overflow-y-auto lg:hidden">
+                {manualChannelsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-8 h-8 border-4 border-[#0f2a5c] border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : manualChannels.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 px-4">
+                    <MessageSquare className="w-12 h-12 text-gray-300 mb-3" />
+                    <p className="text-sm text-gray-400 text-center">No tienes conversaciones aún</p>
+                  </div>
+                ) : (
+                  manualChannels.map((ch) => (
+                    <CustomChannelPreview
+                      key={ch.cid}
+                      channel={ch}
+                      setActiveChannel={(channel) => {
+                        chatClient.activeChannels[channel.cid] = channel;
+                        setActiveChannel(channel);
+                      }}
+                      setMobileView={setMobileView}
+                      activeChannel={activeChannel}
+                      searchTerm={searchTerm}
+                    />
+                  ))
+                )}
               </div>
-              <div className="flex-1 overflow-y-auto" style={{ minHeight: '200px' }}>
+
+              {/* DESKTOP: Stream Chat ChannelList (works perfectly on desktop) */}
+              <div className="hidden lg:flex flex-1 overflow-y-auto flex-col">
                 {channelFilters && (
                   <ChannelList
                     filters={channelFilters}
                     sort={channelSort}
                     options={channelOptions}
-                    EmptyStateIndicator={() => (
-                      <div className="flex flex-col items-center justify-center py-12 px-4">
-                        <MessageSquare className="w-12 h-12 text-gray-300 mb-3" />
-                        <p className="text-sm text-gray-400 text-center">No tienes conversaciones aún</p>
-                      </div>
-                    )}
-                    LoadingIndicator={() => (
-                      <div className="flex items-center justify-center py-12">
-                        <div className="w-8 h-8 border-4 border-[#0f2a5c] border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
                     Preview={(props) => (
                       <CustomChannelPreview
                         {...props}
