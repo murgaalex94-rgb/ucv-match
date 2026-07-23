@@ -15,11 +15,231 @@ import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import MaterialDatePicker from '../components/MaterialDatePicker';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../context/AuthContext';
+import { formatDate, formatTime, getInitials } from '../utils';
+
+const cursosPorCarrera = {
+  'Administración de Empresas': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Fundamentos de la Administración',
+    'Costos y Presupuestos', 'Cátedra Vallejo', 'Economía', 'Creatividad e Innovación',
+    'Gestión del Talento Humano', 'Diseño Organizacional', 'Estadística y Análisis de Datos',
+    'Metodología de la Investigación Científica', 'Matemática para las Finanzas',
+    'Derecho Empresarial y Comercial', 'Inteligencia de Mercados', 'Marketing',
+    'Contabilidad Financiera', 'Administración Financiera', 'Marketing Estratégico',
+    'Gerencia y Prospectiva Estratégica', 'Finanzas para los Negocios', 'Marketing Internacional',
+    'Filosofía y Ética', 'Desarrollo de Competencias Gerenciales', 'Simuladores de Negocio',
+    'Gestión de Proyectos', 'Trabajo de Investigación', 'Práctica Preprofesional',
+  ],
+  'Ingeniería de Sistemas': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Matemática Básica',
+    'Introducción a la Ingeniería de Sistemas', 'Inglés I', 'Cálculo I',
+    'Álgebra Lineal', 'Química General', 'Metodología de la Investigación Científica',
+    'Cálculo II', 'Física I', 'Programación I', 'Estadística General',
+    'Cálculo III', 'Física II', 'Programación II', 'Base de Datos I',
+    'Ecuaciones Diferenciales', 'Arquitectura de Computadoras', 'Análisis de Algoritmos',
+    'Base de Datos II', 'Redes y Comunicaciones', 'Ingeniería de Software I',
+    'Sistemas Operativos', 'Ingeniería de Software II', 'Inteligencia de Negocios',
+    'Seguridad Informática', 'Desarrollo Web', 'Gestión de Proyectos TI',
+    'Inteligencia Artificial', 'Trabajo de Investigación', 'Práctica Preprofesional',
+  ],
+  'Ingeniería Civil': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Matemática Básica',
+    'Introducción a la Ingeniería Civil', 'Inglés I', 'Cálculo I',
+    'Álgebra Lineal', 'Química General', 'Dibujo Técnico',
+    'Cálculo II', 'Física I', 'Geometría Descriptiva', 'Programación Básica',
+    'Cálculo III', 'Física II', 'Mecánica Racional', 'Estática',
+    'Ecuaciones Diferenciales', 'Mecánica de Materiales I', 'Topografía',
+    'Mecánica de Materiales II', 'Análisis Estructural I', 'Hidráulica',
+    'Análisis Estructural II', 'Concreto Armado I', 'Mecánica de Suelos',
+    'Concreto Armado II', 'Instalaciones Sanitarias', 'Instalaciones Eléctricas',
+    'Ingeniería de Costos', 'Trabajo de Investigación', 'Práctica Preprofesional',
+  ],
+  'Psicología': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Fundamentos de Psicología',
+    'Neurociencias', 'Psicología del Desarrollo I', 'Inglés I',
+    'Estadística General', 'Psicología del Desarrollo II', 'Psicología del Aprendizaje',
+    'Teorías de la Personalidad', 'Psicología Social', 'Psicología Educativa',
+    'Psicopatología', 'Evaluación Psicológica I', 'Psicología Clínica',
+    'Evaluación Psicológica II', 'Psicología Organizacional', 'Psicología de la Salud',
+    'Terapia Cognitivo Conductual', 'Psicología Jurídica', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+  'Derecho': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Introducción al Derecho',
+    'Derecho Romano', 'Historia del Derecho', 'Inglés I',
+    'Derecho Constitucional', 'Derecho Civil I', 'Teoría del Estado',
+    'Derecho Penal I', 'Derecho Civil II', 'Derecho Procesal I',
+    'Derecho Penal II', 'Derecho Laboral', 'Derecho Procesal II',
+    'Derecho Comercial', 'Derecho Tributario', 'Derecho Internacional',
+    'Derecho Administrativo', 'Derecho Empresarial', 'Argumentación Jurídica',
+    'Trabajo de Investigación', 'Práctica Preprofesional',
+  ],
+  'Contabilidad': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Fundamentos de Contabilidad',
+    'Matemática Financiera', 'Inglés I', 'Contabilidad General',
+    'Costos y Presupuestos', 'Economía General', 'Contabilidad Intermedia',
+    'Contabilidad de Costos', 'Derecho Tributario', 'Contabilidad Superior',
+    'Auditoría Financiera', 'Contabilidad Gubernamental', 'Finanzas Corporativas',
+    'Auditoría Tributaria', 'Contabilidad Gerencial', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+  'Enfermería': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Anatomía Humana',
+    'Biología Celular', 'Inglés I', 'Fisiología Humana',
+    'Bioquímica', 'Microbiología', 'Psicología General',
+    'Farmacología', 'Enfermería Básica', 'Nutrición',
+    'Enfermería en Salud Pública', 'Enfermería Materno Infantil',
+    'Enfermería en Cuidados Críticos', 'Enfermería Quirúrgica',
+    'Gestión en Enfermería', 'Trabajo de Investigación', 'Práctica Preprofesional',
+  ],
+  'Arquitectura': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Taller de Diseño I',
+    'Geometría Descriptiva', 'Inglés I', 'Taller de Diseño II',
+    'Historia de la Arquitectura', 'Dibujo Arquitectónico', 'Taller de Diseño III',
+    'Estructuras I', 'Construcción I', 'Topografía',
+    'Estructuras II', 'Construcción II', 'Instalaciones I',
+    'Diseño Urbano', 'Estructuras III', 'Instalaciones II',
+    'Taller de Tesis', 'Gestión de Proyectos', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+  'Administración y Negocios Internacionales': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Objetivos de Desarrollo Sostenible',
+    'Fundamentos de Administración y Negocios Internacionales', 'Inglés I', 'Cambio Climático y Gestión de Riesgos',
+    'Comercio Internacional', 'Cátedra Vallejo', 'Economía',
+    'Inglés II', 'Business Analytics', 'Contabilidad y Finanzas',
+    'International Market Research', 'Constitución y Derechos Humanos', 'Inglés III',
+    'Costos y Cotizaciones Internacionales', 'Creatividad e Innovación', 'Legislación y Operatividad Aduanera',
+    'Merceología y Clasificación Arancelaria', 'Estadística y Análisis de Datos', 'Inglés IV',
+    'Metodología de la Investigación Científica', 'Marketing', 'Gestión Financiera Internacional',
+    'Derecho de los Negocios Internacionales', 'Matemática para las Finanzas', 'Inglés V',
+    'Gestión de la Cadena de Suministro Internacional', 'International Marketing', 'Trabajo de Investigación I',
+    'International Sales Management', 'Filosofía y Ética', 'Inglés VI',
+    'Inteligencia Artificial y Aprendizaje Automático', 'Experiencia Curricular Electiva', 'Práctica Preprofesional I',
+    'Gestión del Talento Humano', 'International Business Plan', 'Inglés VII',
+    'Experiencia Curricular Electiva', 'Toma de Decisiones Estratégicas', 'Planificación Estratégica y Financiera',
+    'Gestión de Proyectos', 'Inglés VIII', 'Gestión de Marcas en la Era Digital',
+    'Finanzas y Valoración de Empresas', 'Gestión de la Innovación y la Tecnología', 'Trabajo de Investigación II',
+    'Innovación para la Gestión de Personas', 'Inglés IX', 'Práctica Preprofesional II',
+    'Inglés X',
+  ],
+  'Ingeniería Ambiental': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Matemática Básica',
+    'Introducción a la Ingeniería Ambiental', 'Inglés I', 'Química General',
+    'Biología General', 'Cálculo I', 'Física General',
+    'Ecología General', 'Cálculo II', 'Química Ambiental',
+    'Microbiología Ambiental', 'Geología', 'Estadística Ambiental',
+    'Hidrología', 'Cálculo III', 'Física Ambiental',
+    'Contaminación Atmosférica', 'Gestión de Residuos Sólidos', 'Tratamiento de Aguas',
+    'Evaluación de Impacto Ambiental', 'Sistemas de Información Geográfica', 'Auditoría Ambiental',
+    'Gestión de Riesgos Ambientales', 'Energías Renovables', 'Derecho Ambiental',
+    'Gestión de Calidad Ambiental', 'Remediación de Suelos', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+  'Ingeniería Industrial': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Matemática Básica',
+    'Introducción a la Ingeniería Industrial', 'Inglés I', 'Física General',
+    'Química General', 'Cálculo I', 'Dibujo Técnico',
+    'Cálculo II', 'Estadística General', 'Programación Básica',
+    'Cálculo III', 'Investigación de Operaciones I', 'Mecánica Industrial',
+    'Termodinámica', 'Electrotecnia', 'Investigación de Operaciones II',
+    'Gestión de la Producción', 'Diseño de Productos', 'Ergonomía',
+    'Gestión de Calidad', 'Logística y Distribución', 'Simulación de Sistemas',
+    'Gestión de Mantenimiento', 'Seguridad Industrial', 'Gestión de Proyectos Industriales',
+    'Ingeniería Económica', 'Planificación Estratégica', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+  'Arte & Diseño Gráfico Empresarial': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Fundamentos del Arte',
+    'Teoría del Color', 'Inglés I', 'Dibujo Básico',
+    'Historia del Arte', 'Diseño Gráfico I', 'Fotografía Digital',
+    'Composición Visual', 'Diseño Gráfico II', 'Tipografía',
+    'Ilustración Digital', 'Diseño Editorial', 'Branding Corporativo',
+    'Diseño Web I', 'Marketing Digital', 'Diseño de Empaques',
+    'Diseño Publicitario', 'Animación 2D', 'Diseño Web II',
+    'Identidad Visual', 'Dirección de Arte', 'Gestión de Proyectos de Diseño',
+    'Diseño de Interfaces', 'Portafolio Profesional', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+  'Ciencias de la Comunicación': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Introducción a la Comunicación',
+    'Teoría de la Comunicación I', 'Inglés I', 'Historia de la Comunicación',
+    'Semiótica', 'Redacción Periodística I', 'Fotografía Periodística',
+    'Teoría de la Comunicación II', 'Redacción Periodística II', 'Radio I',
+    'Televisión I', 'Periodismo Digital', 'Ética de la Comunicación',
+    'Radio II', 'Televisión II', 'Comunicación Organizacional',
+    'Publicidad I', 'Relaciones Públicas', 'Comunicación Audiovisual',
+    'Investigación Periodística', 'Marketing Estratégico', 'Gestión de Medios',
+    'Producción Multimedia', 'Comunicación Política', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+  'Ciencias del Deporte': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Anatomía Humana',
+    'Fisiología del Ejercicio', 'Inglés I', 'Biología General',
+    'Bioquímica del Deporte', 'Psicología del Deporte', 'Nutrición Deportiva',
+    'Kinesiología', 'Teoría y Metodología del Entrenamiento I', 'Biomecánica',
+    'Fisiología del Deporte II', 'Teoría y Metodología del Entrenamiento II', 'Medicina Deportiva',
+    'Gestión de Organizaciones Deportivas', 'Entrenamiento Deportivo I', 'Didáctica de la Educación Física',
+    'Entrenamiento Deportivo II', 'Planificación Deportiva', 'Recreación y Tiempo Libre',
+    'Evaluación Funcional', 'Rehabilitación Deportiva', 'Gestión de Eventos Deportivos',
+    'Psicomotricidad', 'Actividad Física y Salud', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+  'Educación Inicial': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Fundamentos de la Educación',
+    'Psicología del Desarrollo I', 'Inglés I', 'Pedagogía General',
+    'Didáctica General', 'Sociología de la Educación', 'Filosofía de la Educación',
+    'Psicología del Desarrollo II', 'Didáctica de la Educación Inicial I', 'Currículo de Educación Inicial',
+    'Evaluación Educativa', 'Didáctica de la Educación Inicial II', 'Literatura Infantil',
+    'Expresión Artística', 'Expresión Corporal', 'Juego y Aprendizaje',
+    'Atención a la Diversidad', 'Gestión del Aula', 'Educación Inclusiva',
+    'Familia y Comunidad', 'Tecnología Educativa', 'Investigación Educativa',
+    'Práctica Profesional I', 'Práctica Profesional II', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+  'Educación en Idiomas - Inglés': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Fundamentos de la Educación',
+    'Inglés I', 'Pedagogía General', 'Lingüística General',
+    'Fonética y Fonología del Inglés', 'Inglés II', 'Didáctica General',
+    'Gramática del Inglés I', 'Inglés III', 'Sociología de la Educación',
+    'Gramática del Inglés II', 'Inglés IV', 'Didáctica del Inglés I',
+    'Literatura en Inglés I', 'Inglés V', 'Evaluación Educativa',
+    'Literatura en Inglés II', 'Inglés VI', 'Didáctica del Inglés II',
+    'Traducción I', 'Inglés VII', 'Gestión del Aula',
+    'Traducción II', 'Inglés VIII', 'Investigación Educativa',
+    'Cultura y Civilización Angloparlante', 'Inglés IX', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+  'Tecnología Médica en Laboratorio Clínico y Anatomía Patológica': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Anatomía Humana',
+    'Biología Celular', 'Inglés I', 'Fisiología Humana',
+    'Bioquímica', 'Microbiología General', 'Química Clínica I',
+    'Hematología I', 'Parasitología', 'Inmunología',
+    'Química Clínica II', 'Hematología II', 'Bacteriología Clínica',
+    'Virología', 'Micología Clínica', 'Banco de Sangre',
+    'Anatomía Patológica I', 'Citología', 'Genética Molecular',
+    'Anatomía Patológica II', 'Toxicología Clínica', 'Gestión de Laboratorio',
+    'Hemoterapia', 'Molecular Diagnostics', 'Investigación en Laboratorio',
+    'Bioseguridad', 'Ética en Laboratorio Clínico', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+  'Tecnología Médica en Terapia Física y Rehabilitación': [
+    'Pensamiento Lógico', 'Habilidades Comunicativas', 'Anatomía Humana',
+    'Biología Celular', 'Inglés I', 'Fisiología Humana',
+    'Bioquímica', 'Física Médica', 'Psicología General',
+    'Kinesiología I', 'Fisiología del Ejercicio', 'Neuroanatomía',
+    'Kinesiología II', 'Patología Médica I', 'Electroterapia',
+    'Mecanoterapia', 'Patología Médica II', 'Hidroterapia',
+    'Terapia Manual', 'Rehabilitación Neurológica', 'Rehabilitación Musculoesquelética',
+    'Rehabilitación Cardiopulmonar', 'Kinesioterapia', 'Gestión en Terapia Física',
+    'Rehabilitación Geriátrica', 'Rehabilitación Pediátrica', 'Investigación en Terapia Física',
+    'Bioética en Rehabilitación', 'Prevención y Promoción de la Salud', 'Trabajo de Investigación',
+    'Práctica Preprofesional',
+  ],
+};
+import { useAuth } from '../hooks/useAuth.jsx';
 import { StreamChat } from 'stream-chat';
 import { getChannelId, createOrGetStreamChannel } from '../lib/chatUtils';
 
-const API_KEY = import.meta.env.VITE_STREAM_API_KEY || '3mgv7c3pnrhu';
+const API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
 const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -35,12 +255,14 @@ function MentoriasPage() {
   const [horaSeleccionada, setHoraSeleccionada] = useState(null);
   const [mentoresDisponibles, setMentoresDisponibles] = useState([]);
   const [mentorSeleccionado, setMentorSeleccionado] = useState('');
+  const [cursosDisponibles, setCursosDisponibles] = useState([]);
   const [sesionesHoy, setSesionesHoy] = useState([]);
   const [proximasMentorias, setProximasMentorias] = useState([]);
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirmModal, setConfirmModal] = useState(null);
   const [rejectModal, setRejectModal] = useState(null);
+  const [detalleModal, setDetalleModal] = useState(null);
   const [toastMsg, setToastMsg] = useState(null);
   const [acceptLoading, setAcceptLoading] = useState(null);
   const [occupiedSlots, setOccupiedSlots] = useState([]);
@@ -131,7 +353,6 @@ function MentoriasPage() {
       if (error) {
         // Si falla por columna stream_chat_channel_id no existente, reintentar sin ella
         if (error.code === '42703' || error.message?.includes('stream_chat_channel_id')) {
-          console.log('Columna stream_chat_channel_id no existe, reintentando sin ella');
           return loadMentoriasSinChannelId();
         }
         throw error;
@@ -213,7 +434,7 @@ function MentoriasPage() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, nombre_completo')
+        .select('id, nombre_completo, carrera')
         .eq('rol', 'Mentor');
 
       if (error) throw error;
@@ -483,6 +704,11 @@ function MentoriasPage() {
   };
 
   const handleOpenChat = async (session) => {
+    // Solo permitir chatear si la mentoría está Activa
+    if (session.estado !== 'Activa') {
+      setToastMsg({ text: 'La mentoría debe ser aceptada antes de chatear', type: 'error' });
+      return;
+    }
     try {
       const otherUserId = esMentor ? session.estudiante_id : session.mentor_id;
       if (!otherUserId) {
@@ -527,6 +753,10 @@ function MentoriasPage() {
       console.error('Error opening chat:', err);
       navigate('/mensajes');
     }
+  };
+
+  const handleOpenDetalle = (session) => {
+    setDetalleModal(session);
   };
 
   const getEstadoLabel = (estado) => {
@@ -630,17 +860,6 @@ function MentoriasPage() {
     return days;
   };
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
-  };
-
-  const getInitials = (name) => {
-    if (!name) return 'M';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  };
-
   return (
     <div className="flex min-h-screen bg-[#f5f7fa] font-sans">
       <style>{`.rs-picker-popup { z-index: 9999 !important; } .rs-picker-toggle-indicator { display: none !important; }`}</style>
@@ -657,7 +876,7 @@ function MentoriasPage() {
           <div className="flex items-center gap-4 w-full md:w-auto">
             {esMentor ? (
               <button
-                onClick={() => openModal()}
+                onClick={() => document.getElementById('solicitudes-lista')?.scrollIntoView({ behavior: 'smooth' })}
                 className="relative bg-[#0f2a5c] text-white px-6 py-2.5 min-h-[44px] rounded-full font-medium text-sm flex items-center gap-2 hover:bg-[#0f2a5c]/90 transition-colors"
               >
                 <ClipboardList className="w-4 h-4" />
@@ -684,7 +903,7 @@ function MentoriasPage() {
         {/* MAIN CONTENT GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* LEFT CONTENT */}
-          <main className="lg:col-span-3 space-y-8 min-w-0">
+          <main id="solicitudes-lista" className="lg:col-span-3 space-y-8 min-w-0">
 
             {/* SESIONES DE HOY */}
             <section>
@@ -704,9 +923,27 @@ function MentoriasPage() {
                             <span className="text-xs text-blue-100">Hoy</span>
                           </div>
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
-                              {getInitials(esMentor ? session.estudiante?.nombre_completo : session.mentor?.nombre_completo)}
-                            </div>
+                            {esMentor ? session.estudiante?.avatar_url ? (
+                              <img 
+                                src={session.estudiante.avatar_url} 
+                                alt={session.estudiante.nombre_completo}
+                                className="w-12 h-12 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
+                                {getInitials(session.estudiante?.nombre_completo)}
+                              </div>
+                            ) : session.mentor?.avatar_url ? (
+                              <img 
+                                src={session.mentor.avatar_url} 
+                                alt={session.mentor.nombre_completo}
+                                className="w-12 h-12 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
+                                {getInitials(session.mentor?.nombre_completo)}
+                              </div>
+                            )}
                             <div>
                               <p className="font-semibold text-gray-800 text-sm">{esMentor ? (session.estudiante?.nombre_completo || 'Estudiante') : (session.mentor?.nombre_completo || 'Mentor')}</p>
                               <p className="text-gray-500 text-xs">{esMentor ? (session.estudiante?.carrera || 'Carrera no especificada') : (session.mentor?.carrera || 'Carrera no especificada')}</p>
@@ -720,11 +957,14 @@ function MentoriasPage() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => handleOpenChat(session)}
-                            className="bg-[#0f2a5c] text-white px-5 py-2 min-h-[44px] rounded-xl font-medium text-sm hover:bg-[#0f2a5c]/90 transition flex items-center gap-1.5">
+                          <button 
+                            onClick={() => handleOpenChat(session)}
+                            disabled={session.estado !== 'Activa'}
+                            className={`bg-[#0f2a5c] text-white px-5 py-2 min-h-[44px] rounded-xl font-medium text-sm hover:bg-[#0f2a5c]/90 transition flex items-center gap-1.5 ${session.estado !== 'Activa' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
                             <Send className="w-4 h-4" /> Chatear
                           </button>
-                          <button onClick={() => openModal(session)}
+                          <button onClick={() => handleOpenDetalle(session)}
                             className="border border-gray-200 text-gray-700 px-5 py-2 min-h-[44px] rounded-xl text-sm font-medium hover:bg-gray-50 transition">
                             Ver detalles
                           </button>
@@ -757,9 +997,27 @@ function MentoriasPage() {
                               <span className="text-xs text-gray-500 capitalize">{sessionDate.toLocaleDateString('es-ES', { weekday: 'short' })}</span>
                             </div>
                             <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
-                              {getInitials(esMentor ? session.estudiante?.nombre_completo : session.mentor?.nombre_completo)}
-                            </div>
+                            {esMentor ? session.estudiante?.avatar_url ? (
+                              <img 
+                                src={session.estudiante.avatar_url} 
+                                alt={session.estudiante.nombre_completo}
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
+                                {getInitials(session.estudiante?.nombre_completo)}
+                              </div>
+                            ) : session.mentor?.avatar_url ? (
+                              <img 
+                                src={session.mentor.avatar_url} 
+                                alt={session.mentor.nombre_completo}
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
+                                {getInitials(session.mentor?.nombre_completo)}
+                              </div>
+                            )}
                             <div>
                               <p className="font-semibold text-gray-800 text-sm">{esMentor ? (session.estudiante?.nombre_completo || 'Estudiante') : (session.mentor?.nombre_completo || 'Mentor')}</p>
                               <p className="text-gray-500 text-xs">{esMentor ? (session.estudiante?.carrera || 'Carrera no especificada') : (session.mentor?.carrera || 'Carrera no especificada')}</p>
@@ -835,9 +1093,27 @@ function MentoriasPage() {
                     return (
                       <div key={session.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                         <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
-                            {getInitials(esMentor ? session.estudiante?.nombre_completo : session.mentor?.nombre_completo)}
-                          </div>
+                          {esMentor ? session.estudiante?.avatar_url ? (
+                            <img 
+                              src={session.estudiante.avatar_url} 
+                              alt={session.estudiante.nombre_completo}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
+                              {getInitials(session.estudiante?.nombre_completo)}
+                            </div>
+                          ) : session.mentor?.avatar_url ? (
+                            <img 
+                              src={session.mentor.avatar_url} 
+                              alt={session.mentor.nombre_completo}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
+                              {getInitials(session.mentor?.nombre_completo)}
+                            </div>
+                          )}
                           <div className="flex-1">
                             <p className="font-semibold text-gray-800 text-sm">{session.materia || 'Materia'}</p>
                             <p className="text-gray-500 text-xs">{formatDate(session.fecha_solicitud)} • {esMentor ? (session.estudiante?.nombre_completo || 'Estudiante') : (session.mentor?.nombre_completo || 'Mentor')} • {esMentor ? (session.estudiante?.carrera || 'Carrera') : (session.mentor?.carrera || 'Carrera')} • {session.modalidad || 'Virtual'}</p>
@@ -938,26 +1214,37 @@ function MentoriasPage() {
                 <label className="block text-sm font-medium text-gray-600 mb-1">Seleccionar mentor</label>
                 <select
                   value={mentorSeleccionado}
-                  onChange={(e) => setMentorSeleccionado(e.target.value)}
+                  onChange={(e) => {
+                    const mentorId = e.target.value;
+                    setMentorSeleccionado(mentorId);
+                    const mentor = mentoresDisponibles.find(m => m.id === mentorId);
+                    const cursos = cursosPorCarrera[mentor?.carrera] || [];
+                    setCursosDisponibles(cursos);
+                    setFormData({ ...formData, mentor_id: mentorId, materia: '' });
+                  }}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] bg-white cursor-pointer"
                 >
                   <option value="">Selecciona un mentor</option>
                   {mentoresDisponibles.map((mentor) => (
                     <option key={mentor.id} value={mentor.id}>
-                      {mentor.nombre_completo}
+                      {mentor.nombre_completo} {mentor.carrera ? `(${mentor.carrera})` : ''}
                     </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Materia</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-gray-600 mb-1">Curso</label>
+                <select
                   value={formData.materia}
                   onChange={(e) => setFormData({ ...formData, materia: e.target.value })}
-                  placeholder="Ej: Cálculo 1"
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
-                />
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c] bg-white cursor-pointer"
+                  disabled={!mentorSeleccionado}
+                >
+                  <option value="">Selecciona un curso</option>
+                  {cursosDisponibles.map((curso) => (
+                    <option key={curso} value={curso}>{curso}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Tema o duda</label>
@@ -1003,6 +1290,130 @@ function MentoriasPage() {
               className="w-full mt-4 border border-gray-200 text-gray-700 py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-gray-50 transition">
               Volver
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ver Detalles */}
+      {detalleModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={() => setDetalleModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto z-50" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Detalles de la Solicitud</h2>
+              <button onClick={() => setDetalleModal(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">
+                &times;
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Badge de estado */}
+              <div className="flex justify-center">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getEstadoColor(detalleModal.estado)}`}>
+                  {getEstadoLabel(detalleModal.estado)}
+                </span>
+              </div>
+
+              {/* Información de la persona (Estudiante para Mentor, Mentor para Estudiante) */}
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                {esMentor ? (
+                  // Mentor ve info del estudiante
+                  <>
+                    {detalleModal.estudiante?.avatar_url ? (
+                      <img src={detalleModal.estudiante.avatar_url} alt={detalleModal.estudiante.nombre_completo} className="w-14 h-14 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-14 h-14 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white font-bold text-lg">
+                        {(detalleModal.estudiante?.nombre_completo || 'E')[0].toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-800">{detalleModal.estudiante?.nombre_completo || 'Estudiante'}</p>
+                      <p className="text-sm text-gray-500">{detalleModal.estudiante?.carrera || 'Carrera no especificada'}</p>
+                    </div>
+                  </>
+                ) : (
+                  // Estudiante ve info del mentor
+                  <>
+                    {detalleModal.mentor?.avatar_url ? (
+                      <img src={detalleModal.mentor.avatar_url} alt={detalleModal.mentor.nombre_completo} className="w-14 h-14 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-14 h-14 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white font-bold text-lg">
+                        {(detalleModal.mentor?.nombre_completo || 'M')[0].toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-800">{detalleModal.mentor?.nombre_completo || 'Mentor'}</p>
+                      <p className="text-sm text-gray-500">{detalleModal.mentor?.carrera || 'Carrera no especificada'}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+              
+              <div className="border-t pt-3 space-y-3">
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide">Curso</p>
+                  <p className="font-medium text-gray-800">{detalleModal.materia || 'No especificado'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide">Tema / Duda</p>
+                  <p className="text-gray-700 whitespace-pre-wrap">{detalleModal.descripcion || 'Sin descripción'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide">Fecha de solicitud</p>
+                  <p className="text-gray-700">{detalleModal.fecha_solicitud ? new Date(detalleModal.fecha_solicitud).toLocaleString('es-ES') : 'No especificada'}</p>
+                </div>
+              </div>
+              
+              {/* Botones según rol y estado */}
+              <div className="pt-2 border-t">
+                {esMentor ? (
+                  // Mentor: botones de Aceptar/Rechazar
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setDetalleModal(null);
+                        handleAcceptSession(detalleModal);
+                      }}
+                      disabled={acceptLoading === detalleModal.id}
+                      className="flex-1 bg-green-100 text-green-700 py-2.5 min-h-[44px] rounded-xl font-medium hover:bg-green-200 transition disabled:opacity-50"
+                    >
+                      {acceptLoading === detalleModal.id ? '...' : 'Aceptar'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDetalleModal(null);
+                        setRejectModal(detalleModal);
+                      }}
+                      className="flex-1 bg-red-100 text-red-700 py-2.5 min-h-[44px] rounded-xl font-medium hover:bg-red-200 transition"
+                    >
+                      Rechazar
+                    </button>
+                  </div>
+                ) : (
+                  // Estudiante: botón según estado
+                  detalleModal.estado === 'Pendiente' ? (
+                    <button
+                      onClick={() => {
+                        setDetalleModal(null);
+                        handleCancelRequest(detalleModal.id);
+                      }}
+                      className="w-full border-2 border-red-500 text-red-600 py-2.5 min-h-[44px] rounded-xl font-medium hover:bg-red-50 transition"
+                    >
+                      Cancelar solicitud
+                    </button>
+                  ) : detalleModal.estado === 'Activa' ? (
+                    <button
+                      onClick={() => {
+                        setDetalleModal(null);
+                        handleOpenChat(detalleModal);
+                      }}
+                      className="w-full bg-[#0f2a5c] text-white py-2.5 min-h-[44px] rounded-xl font-medium hover:bg-[#0f2a5c]/90 transition"
+                    >
+                      Ir al Chat
+                    </button>
+                  ) : null
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

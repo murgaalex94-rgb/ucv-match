@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth.jsx';
 
 const reports = [
   { id: 1, title: 'Reporte de Mentorías - Julio 2026', type: 'PDF', date: '15 Jul 2026', size: '2.4 MB', status: 'Generado', description: 'Resumen completo de mentorías realizadas en el mes.' },

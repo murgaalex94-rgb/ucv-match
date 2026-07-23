@@ -23,6 +23,15 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+function parseLocalDate(dateStr) {
+  if (!dateStr) return null;
+  // Parsear como fecha local (sin zona horaria) para evitar problemas de offset
+  if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return parse(dateStr, 'yyyy-MM-dd', new Date());
+  }
+  return startOfDay(new Date(dateStr));
+}
+
 var PRIMARY = '#0f2a5c';
 var PRIMARY_LIGHT = 'rgba(0,0,0,0.06)';
 var PRIMARY_HOVER = 'rgba(0,0,0,0.04)';
@@ -50,13 +59,13 @@ function MaterialDatePicker({
 }) {
   var [open, setOpen] = useState(false);
   var [view, setView] = useState('days');
-  var [tempDate, setTempDate] = useState(value ? startOfDay(new Date(value)) : startOfDay(new Date()));
+  var [tempDate, setTempDate] = useState(value ? parseLocalDate(value) : startOfDay(new Date()));
   var [hoverDate, setHoverDate] = useState(null);
   var [animating, setAnimating] = useState(false);
 
   var isRange = range && Array.isArray(value);
-  var rangeStart = isRange ? (value[0] ? startOfDay(new Date(value[0])) : null) : null;
-  var rangeEnd = isRange ? (value[1] ? startOfDay(new Date(value[1])) : null) : null;
+  var rangeStart = isRange ? (value[0] ? parseLocalDate(value[0]) : null) : null;
+  var rangeEnd = isRange ? (value[1] ? parseLocalDate(value[1]) : null) : null;
 
   var today = useMemo(function () { return startOfDay(new Date()); }, []);
 
@@ -77,7 +86,7 @@ function MaterialDatePicker({
   function handleInputClick() {
     setOpen(true);
     if (value) {
-      var d = isRange ? (value[0] ? startOfDay(new Date(value[0])) : today) : startOfDay(new Date(value));
+      var d = isRange ? (value[0] ? parseLocalDate(value[0]) : today) : parseLocalDate(value);
       setTempDate(d);
     } else {
       setTempDate(today);
@@ -193,8 +202,8 @@ function MaterialDatePicker({
 
   // ===== DISABLED =====
   function isDisabled(day) {
-    if (minDate && isBefore(day, startOfDay(new Date(minDate)))) return true;
-    if (maxDate && isAfter(day, startOfDay(new Date(maxDate)))) return true;
+    if (minDate && isBefore(day, startOfDay(parseLocalDate(minDate)))) return true;
+    if (maxDate && isAfter(day, startOfDay(parseLocalDate(maxDate)))) return true;
     return false;
   }
 
@@ -202,9 +211,9 @@ function MaterialDatePicker({
   var inputValue = '';
   if (value) {
     if (isRange) {
-      inputValue = (value[0] ? format(value[0], 'dd/MM/yyyy') : '') + ' - ' + (value[1] ? format(value[1], 'dd/MM/yyyy') : '');
+      inputValue = (value[0] ? format(parseLocalDate(value[0]), 'dd/MM/yyyy') : '') + ' - ' + (value[1] ? format(parseLocalDate(value[1]), 'dd/MM/yyyy') : '');
     } else {
-      inputValue = format(value, 'dd/MM/yyyy');
+      inputValue = format(parseLocalDate(value), 'dd/MM/yyyy');
     }
   }
 

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth.jsx';
 
 const courses = [
   {

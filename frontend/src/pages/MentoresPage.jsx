@@ -11,7 +11,7 @@ import { supabase } from '../lib/supabase';
 import { StreamChat } from 'stream-chat';
 import { createOrGetStreamChannel } from '../lib/chatUtils';
 
-const API_KEY = import.meta.env.VITE_STREAM_API_KEY || '3mgv7c3pnrhu';
+const API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
 
 const facultades = [
@@ -79,13 +79,13 @@ export default function MentoresPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [userName, setUserName] = useState('');
   const [userInitials, setUserInitials] = useState('U');
+  const [userAvatarUrl, setUserAvatarUrl] = useState(null);
   const [userRol, setUserRol] = useState('');
   const [authUserId, setAuthUserId] = useState(null);
   const [userCarrera, setUserCarrera] = useState('');
   const [mentorActiveCounts, setMentorActiveCounts] = useState({});
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [calificacion, setCalificacion] = useState('');
-  const [sortBy, setSortBy] = useState('populares');
+  const [cicloFiltro, setCicloFiltro] = useState('');
   const [promedios, setPromedios] = useState({});
 
   const navigate = useNavigate();
@@ -105,10 +105,11 @@ export default function MentoresPage() {
         // Obtener carrera del usuario logueado
         const { data: perfil } = await supabase
           .from('profiles')
-          .select('carrera')
+          .select('carrera, avatar_url')
           .eq('id', authUser.id)
           .maybeSingle();
         if (perfil?.carrera) setUserCarrera(perfil.carrera);
+        if (perfil?.avatar_url) setUserAvatarUrl(perfil.avatar_url);
       }
       await fetchMentores();
     };
@@ -197,7 +198,7 @@ export default function MentoresPage() {
       if (error) {
         // Tabla no existe o RLS - no es crítico, usar promedios por defecto
         if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          console.log('Tabla calificaciones no existe, usando valores por defecto');
+          // Usar valores por defecto
         } else {
           console.error('Error fetching promedios:', error);
         }
@@ -337,11 +338,9 @@ export default function MentoresPage() {
     }
   };
 
-  const ratingOptions = [
-    { value: '', label: 'Cualquiera' },
-    { value: '5.0', label: '5.0' },
-    { value: '4.0', label: '4.0 o más' },
-    { value: '3.0', label: '3.0 o más' }
+  const cicloOptions = [
+    { value: '', label: 'Todos' },
+    ...Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: `${i + 1}° ciclo` }))
   ];
 
   const filteredMentors = useMemo(() => {
@@ -350,27 +349,18 @@ export default function MentoresPage() {
         mentor.nombre_completo?.toLowerCase().includes(searchTerm.toLowerCase()) || 
         mentor.carrera?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchCarrera = !carrera || mentor.carrera === carrera;
-      const prom = promedios[mentor.id] ? parseFloat(promedios[mentor.id].promedio) : (mentor.promedio ? mentor.promedio / 20 * 5 : 0);
-      const matchRating = !calificacion || prom >= parseFloat(calificacion);
+      const matchCiclo = !cicloFiltro || String(mentor.ciclo) === cicloFiltro;
       const matchFav = !showFavoritesOnly || favoritos.has(mentor.id);
-      return matchSearch && matchCarrera && matchRating && matchFav;
+      return matchSearch && matchCarrera && matchCiclo && matchFav;
     });
 
-    if (sortBy === 'rating') {
-      result = [...result].sort((a, b) => {
-        const pa = promedios[a.id] ? parseFloat(promedios[a.id].promedio) : (a.promedio ? a.promedio / 20 * 5 : 0);
-        const pb = promedios[b.id] ? parseFloat(promedios[b.id].promedio) : (b.promedio ? b.promedio / 20 * 5 : 0);
-        return pb - pa;
-      });
-    }
-
     return result;
-  }, [searchTerm, carrera, calificacion, sortBy, mentores, promedios, showFavoritesOnly, favoritos]);
+  }, [searchTerm, carrera, cicloFiltro, mentores, showFavoritesOnly, favoritos]);
 
   const visibleMentors = filteredMentors.slice(0, visibleCount);
 
   const handleClearFilters = () => {
-    setSearchTerm(''); setFacultad(''); setCarrera(''); setCalificacion(''); setSortBy('populares'); setFiltersApplied(false); setShowFavoritesOnly(false);
+    setSearchTerm(''); setFacultad(''); setCarrera(''); setCicloFiltro(''); setFiltersApplied(false); setShowFavoritesOnly(false);
   };
 
   const handleViewProfile = (mentor) => {
@@ -514,7 +504,7 @@ export default function MentoresPage() {
                 className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]"
               />
             </div>
-            <Header nombreUsuario={userName} initials={userInitials} />
+            <Header nombreUsuario={userName} initials={userInitials} avatarUrl={userAvatarUrl} />
           </div>
         </div>
 
@@ -553,27 +543,15 @@ export default function MentoresPage() {
                 )}
               </div>
               <div className="relative w-full md:w-auto" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setOpenDropdown(openDropdown === 'rating' ? '' : 'rating')}
+                <button onClick={() => setOpenDropdown(openDropdown === 'ciclo' ? '' : 'ciclo')}
                   className="bg-white border border-gray-200 rounded-full px-4 py-2 min-h-[44px] text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto">
-                  {calificacion ? (ratingOptions.find(o => o.value === calificacion)?.label || calificacion) : 'Calificación'} <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${openDropdown === 'rating' ? 'rotate-180' : ''}`} />
+                  {cicloFiltro ? (cicloOptions.find(o => o.value === cicloFiltro)?.label || cicloFiltro) : 'Ciclo'} <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${openDropdown === 'ciclo' ? 'rotate-180' : ''}`} />
                 </button>
-                {openDropdown === 'rating' && (
-                  <div className="absolute top-full left-0 mt-1 z-10 bg-white rounded-xl shadow-lg border border-gray-100 py-1 min-w-[160px]">
-                    {ratingOptions.map((opt) => (
-                      <button key={opt.value} onClick={() => { setCalificacion(opt.value); setOpenDropdown('') }} className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${calificacion === opt.value ? 'text-[#0f2a5c] font-medium' : 'text-gray-700'}`}>{opt.label}</button>
+                {openDropdown === 'ciclo' && (
+                  <div className="absolute top-full left-0 mt-1 z-10 bg-white rounded-xl shadow-lg border border-gray-100 py-1 min-w-[160px] max-h-60 overflow-y-auto">
+                    {cicloOptions.map((opt) => (
+                      <button key={opt.value} onClick={() => { setCicloFiltro(opt.value); setOpenDropdown('') }} className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${cicloFiltro === opt.value ? 'text-[#0f2a5c] font-medium' : 'text-gray-700'}`}>{opt.label}</button>
                     ))}
-                  </div>
-                )}
-              </div>
-              <div className="relative w-full md:w-auto" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setOpenDropdown(openDropdown === 'sort' ? '' : 'sort')}
-                  className="bg-white border border-gray-200 rounded-full px-4 py-2 min-h-[44px] text-sm flex items-center gap-2 cursor-pointer hover:border-gray-300 transition w-full md:w-auto">
-                  {sortBy === 'populares' ? 'Más populares' : 'Mejor calificación'} <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${openDropdown === 'sort' ? 'rotate-180' : ''}`} />
-                </button>
-                {openDropdown === 'sort' && (
-                  <div className="absolute top-full left-0 mt-1 z-10 bg-white rounded-xl shadow-lg border border-gray-100 py-1 min-w-[160px]">
-                    <button onClick={() => { setSortBy('populares'); setOpenDropdown('') }} className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${sortBy === 'populares' ? 'text-[#0f2a5c] font-medium' : 'text-gray-700'}`}>Más populares</button>
-                    <button onClick={() => { setSortBy('rating'); setOpenDropdown('') }} className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${sortBy === 'rating' ? 'text-[#0f2a5c] font-medium' : 'text-gray-700'}`}>Mejor calificación</button>
                   </div>
                 )}
               </div>

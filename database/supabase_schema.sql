@@ -145,10 +145,13 @@ ALTER TABLE public.recursos ENABLE ROW LEVEL SECURITY;
 -- POLÍTICAS RLS PARA PROFILES
 -- ============================================
 
+-- All authenticated users can view all profiles (needed for chat)
 DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
-CREATE POLICY "Users can view own profile"
+DROP POLICY IF EXISTS "Mentors can view student profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Authenticated users can view all profiles" ON public.profiles;
+CREATE POLICY "Authenticated users can view all profiles"
     ON public.profiles FOR SELECT
-    USING (auth.uid() = id);
+    USING (auth.uid() IS NOT NULL);
 
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile"
@@ -160,16 +163,6 @@ DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 CREATE POLICY "Users can insert own profile"
     ON public.profiles FOR INSERT
     WITH CHECK (auth.uid() = id);
-
-DROP POLICY IF EXISTS "Mentors can view student profiles" ON public.profiles;
-CREATE POLICY "Mentors can view student profiles"
-    ON public.profiles FOR SELECT
-    USING (
-        auth.uid() IN (
-            SELECT id FROM public.profiles WHERE rol = 'Mentor'
-        )
-        AND rol = 'Estudiante'
-    );
 
 -- ============================================
 -- POLÍTICAS RLS PARA MENTORIAS

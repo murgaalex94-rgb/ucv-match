@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
-  User, Lock, Eye, EyeOff, Mail, Settings,
+  User, Lock, Eye, EyeOff, Settings,
   CheckCircle,
   Camera, LogOut, AlertTriangle, Trash2, X as XIcon
 } from 'lucide-react';
@@ -10,6 +10,7 @@ import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { supabase } from '../lib/supabase';
 import MaterialDatePicker from '../components/MaterialDatePicker';
+import { mallasCurriculares, getCursosPorCarrera } from '../constants/mallasCurriculares';
 
 export default function ConfiguracionPage() {
   const navigate = useNavigate();
@@ -21,10 +22,10 @@ export default function ConfiguracionPage() {
     nombres: '',
     apellidos: '',
     email: '',
-    correo_alternativo: '',
     fecha_nacimiento: '',
     genero: '',
-    biografia: ''
+    biografia: '',
+    promedio: ''
   });
   const [passwordData, setPasswordData] = useState({
     current: '',
@@ -65,17 +66,13 @@ export default function ConfiguracionPage() {
 
         const { data: profileRow } = await supabase
           .from('profiles')
-          .select('nombre_completo, email, avatar_url, genero, biografia, fecha_nacimiento, correo_alternativo, rol, ciclo')
+          .select('nombre_completo, email, avatar_url, rol, ciclo, carrera, codigo_estudiante, promedio, fecha_nacimiento, genero, biografia')
           .eq('id', authUser.id)
           .maybeSingle();
 
         let displayName = profileRow?.nombre_completo || '';
         let displayEmail = profileRow?.email || authUser.email || '';
         let avatarUrl = profileRow?.avatar_url || '';
-        let displayGenero = profileRow?.genero || '';
-        let displayBiografia = profileRow?.biografia || '';
-        let displayFechaNac = profileRow?.fecha_nacimiento || '';
-
         if (!displayName && authUser.user_metadata) {
           displayName = authUser.user_metadata.full_name || authUser.user_metadata.name || '';
         }
@@ -91,22 +88,33 @@ export default function ConfiguracionPage() {
         setUserRol(dbRol);
         setCiclo(dbCiclo);
 
+        const dbCarrera = profileRow?.carrera || authUser.user_metadata?.carrera || '';
+        const dbCodigo = profileRow?.codigo_estudiante || authUser.user_metadata?.codigo_estudiante || '';
+        const dbPromedio = profileRow?.promedio || authUser.user_metadata?.promedio || '';
+
         setProfileData({
           nombre_completo: displayName,
           email: displayEmail,
           avatar_url: avatarUrl,
+          carrera: dbCarrera,
+          codigo_estudiante: dbCodigo,
+          promedio: dbPromedio,
         });
 
         const nameParts = (displayName || '').split(' ');
         const mid = Math.ceil(nameParts.length / 2);
+        let displayGenero = profileRow?.genero || '';
+        let displayBiografia = profileRow?.biografia || '';
+        let displayFechaNac = profileRow?.fecha_nacimiento || '';
+
         setFormData({
           nombres: nameParts.slice(0, mid).join(' ') || '',
           apellidos: nameParts.slice(mid).join(' ') || '',
           email: displayEmail,
-          correo_alternativo: profileRow?.correo_alternativo || '',
           fecha_nacimiento: displayFechaNac,
           genero: displayGenero,
-          biografia: displayBiografia
+          biografia: displayBiografia,
+          promedio: profileRow?.promedio || ''
         });
 
         // Load academic interests
@@ -122,10 +130,10 @@ export default function ConfiguracionPage() {
           if (cursosIds.length > 0) {
             const { data: cursosData } = await supabase
               .from('cursos')
-              .select('id, nombre')
+              .select('id, titulo')
               .in('id', cursosIds);
             if (cursosData) {
-              cursosData.forEach(c => { cursosMap[c.id] = c.nombre; });
+              cursosData.forEach(c => { cursosMap[c.id] = c.titulo; });
             }
           }
           setIntereses(interesesData.map(i => ({
@@ -151,17 +159,25 @@ export default function ConfiguracionPage() {
         .from('profiles')
         .update({
           nombre_completo: nombreCompleto,
-          correo_alternativo: formData.correo_alternativo || null,
           fecha_nacimiento: formData.fecha_nacimiento,
           genero: formData.genero,
-          biografia: formData.biografia
+          biografia: formData.biografia,
+          promedio: formData.promedio ? parseFloat(formData.promedio) : null
         })
         .eq('id', user.id);
 
       if (error) {
         setMessage('Error al guardar: ' + error.message);
       } else {
-        setProfileData(prev => ({ ...prev, nombre_completo: nombreCompleto }));
+        // Refetch profile to sync all fields
+        const { data: refreshed } = await supabase
+          .from('profiles')
+          .select('nombre_completo, email, avatar_url, rol, ciclo, carrera, codigo_estudiante, promedio, fecha_nacimiento, genero, biografia')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (refreshed) {
+          setProfileData(refreshed);
+        }
         setMessage('✅ Datos actualizados correctamente');
         setTimeout(() => setMessage(''), 3000);
       }
@@ -294,32 +310,63 @@ export default function ConfiguracionPage() {
       setShowCursoDropdown(false);
       return;
     }
-    const { data } = await supabase
+    const carrera = profileData?.carrera || '';
+    const { data, error } = await supabase
       .from('cursos')
-      .select('id, nombre')
-      .ilike('nombre', `%${value}%`)
+      .select('id, titulo')
+      .ilike('titulo', `%${value}%`)
+      .eq('carrera', carrera)
       .limit(10);
-    setCursoResults(data || []);
-    setShowCursoDropdown((data?.length || 0) > 0);
+    if (error) {/* Error handled silently */}
+    let results = data || [];
+    if (results.length === 0 && carrera) {
+      const cursosCarrera = getCursosPorCarrera(carrera);
+      const unique = [...new Set(cursosCarrera)];
+      results = unique.filter(c => c.toLowerCase().includes(value.toLowerCase())).slice(0, 10).map((c, i) => ({ id: `local-${i}`, titulo: c }));
+    }
+    setCursoResults(results);
+    setShowCursoDropdown(results.length > 0);
   };
 
   const handleAddInteres = async (cursoId, cursoNombre) => {
     setAddingCurso(true);
     const tipo = userRol === 'Mentor' ? 'ensenar' : 'aprender';
+    const carrera = profileData?.carrera || null;
     try {
+      let realCursoId = cursoId;
+      // Si es un ID local (curso no existe en BD), créalo primero
+      if (String(cursoId).startsWith('local-')) {
+        const { data: newCurso, error: createError } = await supabase
+          .from('cursos')
+          .insert({ 
+            titulo: cursoNombre, 
+            carrera,
+            categoria: 'Malla Curricular'
+          })
+          .select('id')
+          .single();
+        if (createError) {
+          console.error('[handleAddInteres] create curso error:', createError);
+          throw createError;
+        }
+        realCursoId = newCurso.id;
+      }
       const { data, error } = await supabase
         .from('intereses_usuarios')
-        .insert({ usuario_id: user.id, curso_id: cursoId, tipo })
+        .insert({ usuario_id: user.id, curso_id: realCursoId, tipo })
         .select('id')
         .single();
-      if (error) throw error;
-      setIntereses(prev => [{ id: data.id, curso_id: cursoId, nombre_curso: cursoNombre, tipo }, ...prev]);
+      if (error) {
+        throw error;
+      }
+      setIntereses(prev => [{ id: data.id, curso_id: realCursoId, nombre_curso: cursoNombre, tipo }, ...prev]);
       setCursoSearch('');
       setCursoResults([]);
       setShowCursoDropdown(false);
       setMessage('Interés agregado correctamente');
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
+      console.error('[handleAddInteres] catch:', err);
       if (err.code === '23505') {
         setMessage('Este curso ya está en tu lista de intereses');
       } else {
@@ -466,48 +513,34 @@ export default function ConfiguracionPage() {
                 </div>
                 <div>
                   <p className="font-semibold text-gray-800">{nombreCompleto || 'Usuario'}</p>
-                  <p className="text-sm text-gray-500">Usuario</p>
+                  <p className="text-sm text-gray-500">{userRol || 'Usuario'}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombres</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={formData.nombres}
                     onChange={(e) => setFormData({ ...formData, nombres: e.target.value })}
-                    className="w-full px-4 py-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" 
+                    className="w-full px-4 py-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Apellidos</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={formData.apellidos}
                     onChange={(e) => setFormData({ ...formData, apellidos: e.target.value })}
-                    className="w-full px-4 py-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]" 
+                    className="w-full px-4 py-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
                   />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Correo electrónico institucional</label>
                   <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 rounded-xl border-none text-sm text-gray-500">
                     <Lock className="w-4 h-4 text-gray-400 shrink-0" />
-                    <span>{formData.email} (Correo institucional - No editable)</span>
+                    <span>{formData.email}</span>
                   </div>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Correo de contacto alternativo (opcional)</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="email"
-                      value={formData.correo_alternativo}
-                      onChange={(e) => setFormData({ ...formData, correo_alternativo: e.target.value })}
-                      placeholder="correo@ejemplo.com"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
-                    />
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-1">No se usará para iniciar sesión, solo para notificaciones y recuperación de contraseña.</p>
                 </div>
                 <div>
                   <MaterialDatePicker
@@ -548,6 +581,42 @@ export default function ConfiguracionPage() {
                   </button>
                 </div>
               </div>
+            </section>
+
+            {/* INFORMACIÓN DE LA CUENTA */}
+            <section className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2">
+                <User className="w-5 h-5 text-[#0f2a5c]" />
+                Información de la Cuenta
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de cuenta</label>
+                  <div className="px-4 py-3 bg-gray-50 rounded-xl text-sm text-gray-700">{userRol || 'No especificado'}</div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Carrera</label>
+                  <div className="px-4 py-3 bg-gray-50 rounded-xl text-sm text-gray-700">{profileData?.carrera || 'No especificada'}</div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Código de estudiante</label>
+                  <div className="px-4 py-3 bg-gray-50 rounded-xl text-sm text-gray-700">{profileData?.codigo_estudiante || 'No especificado'}</div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Promedio</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="20"
+                    value={formData.promedio ?? ''}
+                    onChange={(e) => setFormData({ ...formData, promedio: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
+                  />
+                </div>
+              </div>
+
             </section>
 
             {/* INTERESES ACADÉMICOS */}
@@ -602,52 +671,57 @@ export default function ConfiguracionPage() {
                   />
                   {showCursoDropdown && cursoResults.length > 0 && (
                     <div className="absolute z-50 mt-1 w-full bg-white shadow-xl rounded-xl max-h-48 overflow-y-auto border border-gray-100">
-                      {cursoResults.map((curso) => (
-                        <button
-                          key={curso.id}
-                          disabled={addingCurso || intereses.some(i => i.curso_id === curso.id)}
-                          onClick={() => handleAddInteres(curso.id, curso.nombre)}
-                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition flex items-center justify-between disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          <span>{curso.nombre}</span>
-                          {intereses.some(i => i.curso_id === curso.id) ? (
-                            <span className="text-xs text-green-600 font-medium">Agregado</span>
-                          ) : (
-                            <span className="text-xs text-[#0f2a5c] font-medium">+ Agregar</span>
-                          )}
-                        </button>
-                      ))}
+                      {cursoResults.map((curso) => {
+                        const isLocal = String(curso.id).startsWith('local-');
+                        const alreadyAdded = intereses.some(i => 
+                          isLocal ? i.nombre_curso === curso.titulo : i.curso_id === curso.id
+                        );
+                        return (
+                          <button
+                            key={curso.id}
+                            disabled={addingCurso || alreadyAdded}
+                            onClick={() => handleAddInteres(curso.id, curso.titulo)}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition flex items-center justify-between disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <span>{curso.titulo}</span>
+                            {alreadyAdded ? (
+                              <span className="text-xs text-green-600 font-medium">Agregado</span>
+                            ) : (
+                              <span className="text-xs text-[#0f2a5c] font-medium">+ Agregar</span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
               </div>
-
-              {/* Lista de intereses actuales */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">
-                  Mis intereses {intereses.length > 0 && `(${intereses.length})`}
-                </label>
-                {intereses.length === 0 ? (
-                  <p className="text-sm text-gray-400">Aún no has agregado intereses académicos.</p>
-                ) : (
+              
+              {/* Lista de intereses agregados */}
+              {intereses.length > 0 && (
+                <div className="mt-4">
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    {userRol === 'Mentor' ? 'Cursos que enseñas' : 'Tus intereses para aprender'}
+                  </label>
                   <div className="flex flex-wrap gap-2">
                     {intereses.map((interes) => (
-                      <span
-                        key={interes.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium"
-                      >
+                      <span key={interes.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0f2a5c]/10 text-[#0f2a5c] text-sm rounded-full">
                         {interes.nombre_curso}
                         <button
                           onClick={() => handleRemoveInteres(interes.id)}
-                          className="hover:text-red-600 transition-colors"
+                          disabled={addingCurso}
+                          className="text-[#0f2a5c] hover:text-red-600 transition font-medium leading-none"
+                          aria-label="Eliminar"
                         >
-                          <XIcon className="w-3.5 h-3.5" />
+                          ×
                         </button>
                       </span>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+
             </section>
 
             <section className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">

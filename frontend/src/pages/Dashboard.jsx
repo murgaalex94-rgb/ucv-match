@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Search, Check,
-  TrendingUp,
+  TrendingUp, CheckCircle,
   BookOpen, Users, Calendar, MessageSquare, School,
   LayoutDashboard, Settings, ClipboardList, Star, LogOut
 } from 'lucide-react';
@@ -12,13 +12,15 @@ import Header from '../components/Header';
 import { supabase } from '../lib/supabase';
 import { StreamChat } from 'stream-chat';
 import { getChannelId, createOrGetStreamChannel } from '../lib/chatUtils';
+import { formatDate, formatDateFull, formatDateShort, formatTime, getInitials } from '../utils';
 
-const API_KEY = import.meta.env.VITE_STREAM_API_KEY || '3mgv7c3pnrhu';
+const API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [nombreUsuario, setNombreUsuario] = useState('');
   const [userRol, setUserRol] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState(null);
   const [mentoriasActivas, setMentoriasActivas] = useState(0);
   const [mentoriasCompletadas, setMentoriasCompletadas] = useState(0);
   const [mentoresDisponibles, setMentoresDisponibles] = useState(0);
@@ -27,7 +29,6 @@ export default function Dashboard() {
   const [mentoresRecomendados, setMentoresRecomendados] = useState([]);
   const [notificacionesNoLeidas, setNotificacionesNoLeidas] = useState(0);
   const [estudiantesEsteMes, setEstudiantesEsteMes] = useState(0);
-  const [calificacionPromedio, setCalificacionPromedio] = useState('0.0');
   const [loading, setLoading] = useState(true);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -85,21 +86,6 @@ export default function Dashboard() {
     }
   };
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    return `${dias[d.getDay()]} ${d.getDate()} de ${meses[d.getMonth()]}, ${d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
-  };
-
-  const formatDateShort = (dateStr) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    return `${dias[d.getDay()]} ${d.getDate()} - ${d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
-  };
-
   const location = useLocation();
 
   const fetchData = useCallback(async () => {
@@ -108,7 +94,7 @@ export default function Dashboard() {
       if (user) {
         let perfil = null;
         for (let i = 0; i < 5; i++) {
-          const { data, error } = await supabase.from('profiles').select('nombre_completo, rol').eq('id', user.id).maybeSingle();
+          const { data, error } = await supabase.from('profiles').select('nombre_completo, rol, avatar_url').eq('id', user.id).maybeSingle();
           if (error && error.code !== 'PGRST116') {
             console.error('Error fetching profile:', error.message);
             break;
@@ -124,6 +110,7 @@ export default function Dashboard() {
         if (perfil) {
           setNombreUsuario(perfil.nombre_completo);
           setUserRol(perfil.rol || '');
+          setAvatarUrl(perfil.avatar_url);
         } else if (user.user_metadata?.nombre_completo) {
           setNombreUsuario(user.user_metadata.nombre_completo);
           setUserRol(user.user_metadata?.rol || '');
@@ -136,7 +123,6 @@ export default function Dashboard() {
           setSolicitudesList([]);
 
           const { count: pendientes, error: pendError } = await supabase.from('mentorias').select('id', { count: 'exact', head: true }).eq('mentor_id', user.id).eq('estado', 'Pendiente');
-          console.log('[Dashboard] solicitudes pendientes count:', pendientes, 'error:', pendError);
           if (!pendError) {
             setSolicitudesPendientes(pendientes ?? 0);
             if (pendientes > 0) {
@@ -165,18 +151,7 @@ export default function Dashboard() {
             .in('estado', ['Activa', 'Completada'])
             .gte('fecha_solicitud', inicioMes.toISOString());
           setEstudiantesEsteMes(estudiantes || 0);
-
-          // Calificación promedio
-          const { data: califs } = await supabase
-            .from('calificaciones')
-            .select('calificacion')
-            .eq('mentor_id', user.id);
-          if (califs && califs.length > 0) {
-            const suma = califs.reduce((a, c) => a + c.calificacion, 0);
-            setCalificacionPromedio((suma / califs.length).toFixed(1));
-          }
         } else {
-          console.log('User is not mentor. Role:', rol);
           setSolicitudesPendientes(0);
           setSolicitudesList([]);
           const { count: activas } = await supabase.from('mentorias').select('*', { count: 'exact', head: true }).eq('estudiante_id', user.id).eq('estado', 'Activa');
@@ -267,7 +242,7 @@ export default function Dashboard() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input type="text" placeholder={esMentor ? 'Buscar estudiantes, temas...' : 'Buscar mentores, temas...'} className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]" />
             </div>
-            <Header notificacionesNoLeidas={notificacionesNoLeidas} nombreUsuario={nombreUsuario} initials={initials} />
+            <Header notificacionesNoLeidas={notificacionesNoLeidas} nombreUsuario={nombreUsuario} initials={initials} avatarUrl={avatarUrl} />
           </div>
         </div>
 
@@ -385,16 +360,16 @@ export default function Dashboard() {
                 </div>
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                   <div className="flex items-center gap-3 mb-2">
-                    <Star className="w-5 h-5 text-yellow-500 fill-current" />
-                    <span className="text-sm font-semibold text-gray-800">Calificación promedio</span>
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    <span className="text-sm font-semibold text-gray-800">Mentorías completadas</span>
                   </div>
-                  {calificacionPromedio !== '0.0' ? (
+                  {mentoriasCompletadas > 0 ? (
                     <>
-                      <p className="text-3xl font-bold text-[#0f2a5c]">{calificacionPromedio} <span className="text-lg text-yellow-500">⭐</span></p>
-                      <p className="text-xs text-gray-400 mt-1">Basado en tus mentorías completadas</p>
+                      <p className="text-3xl font-bold text-[#0f2a5c]">{mentoriasCompletadas}</p>
+                      <p className="text-xs text-gray-400 mt-1">Sesiones finalizadas exitosamente</p>
                     </>
                   ) : (
-                    <p className="text-base text-gray-400 mt-0.5">Sin calificaciones aún</p>
+                    <p className="text-base text-gray-400 mt-0.5">Aún no has completado ninguna</p>
                   )}
                 </div>
               </div>
@@ -404,7 +379,7 @@ export default function Dashboard() {
             {esMentor && proximasMentorias.length > 0 && (
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-medium text-gray-800">Consultas activas</h3>
+                  <h3 className="font-medium text-gray-800 text-base">Consultas activas</h3>
                   <button onClick={() => navigate('/mentorias')} className="text-xs text-[#0f2a5c] font-semibold hover:underline min-h-[44px]">Ver todas</button>
                 </div>
                 <div className="space-y-3">
@@ -489,7 +464,7 @@ export default function Dashboard() {
               {!esMentor && (
               <div className="flex-1 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-medium text-gray-800">Mentores recomendados</h3>
+                  <h3 className="font-medium text-gray-800 text-base">Mentores recomendados</h3>
                   <button onClick={() => navigate('/mentores')} className="text-xs text-[#0f2a5c] font-semibold hover:underline min-h-[44px]">Ver todos</button>
                 </div>
                 {mentoresRecomendados.length === 0 ? (
@@ -498,9 +473,13 @@ export default function Dashboard() {
                   <div className="space-y-3">
                     {mentoresRecomendados.map((m, i) => (
                       <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                        <div className="w-9 h-9 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-xs font-bold">
-                          {m.nombre_completo?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'M'}
-                        </div>
+                        {m.avatar_url ? (
+                          <img src={m.avatar_url} alt={m.nombre_completo} className="w-9 h-9 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-9 h-9 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-xs font-bold">
+                            {m.nombre_completo?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'M'}
+                          </div>
+                        )}
                         <div>
                           <p className="text-sm font-medium text-gray-800">{m.nombre_completo || 'Mentor'}</p>
                           <p className="text-xs text-gray-400">{m.carrera || 'Sin carrera'} {m.promedio ? `· Prom. ${m.promedio}` : ''}</p>

@@ -22,13 +22,15 @@ import {
   Download, ExternalLink, File, Trash2, Ban, Mail, MessageSquare, Reply, Table, Monitor, Archive, Pin, Pencil, Clipboard, Smile, MoreVertical, User, BellOff,
   Clock, CheckCircle,
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth.jsx';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import { supabase } from '../lib/supabase';
+import { ensureProfile } from '../lib/chatUtils';
+import { formatDate, formatChatTimestamp } from '../utils';
 import EmojiPickerReact from 'emoji-picker-react';
 
-const API_KEY = import.meta.env.VITE_STREAM_API_KEY || '3mgv7c3pnrhu';
+const API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
 // ---- Offline queue utilities ----
 const OFFLINE_QUEUE_KEY = 'mentorlink_offline_msgs';
@@ -215,7 +217,7 @@ const FilePreviewModal = ({ file, fileType, onSend, onClose }) => {
 
 
 
-const ChannelSelector = ({ channelId, onSelect }) => {
+const ChannelSelector = ({ channelId, onSelect, setMobileView }) => {
   const { setActiveChannel, client } = useChatContext();
 
   useEffect(() => {
@@ -225,14 +227,25 @@ const ChannelSelector = ({ channelId, onSelect }) => {
     const selectChannel = async () => {
       try {
         const cleanId = channelId.includes(':') ? channelId.split(':')[1] : channelId;
-        
-        // Instanciar el canal por ID y hacer watch()
-        // El ChannelList oficial detectará automáticamente este canal
+
         const channel = client.channel('messaging', cleanId);
-        await channel.watch();
-        
+        try {
+          await channel.watch();
+        } catch (watchErr) {
+          console.warn('ChannelSelector: watch failed, attempting repair:', watchErr?.message);
+          try {
+            // Intentar agregar al usuario actual como miembro y recrear el canal
+            await channel.addMembers([client.user.id]);
+            await channel.create();
+            await channel.watch();
+          } catch (repairErr) {
+            console.error('ChannelSelector: repair failed:', repairErr?.message);
+          }
+        }
+
         if (isMounted) {
           setActiveChannel(channel);
+          if (setMobileView) setMobileView('chat'); // Switch to chat view on mobile
           if (onSelect) onSelect();
         }
       } catch (err) {
@@ -242,7 +255,7 @@ const ChannelSelector = ({ channelId, onSelect }) => {
 
     selectChannel();
     return () => { isMounted = false; };
-  }, [channelId, client, setActiveChannel, onSelect]);
+  }, [channelId, client, setActiveChannel, onSelect, setMobileView]);
 
   return null;
 };
@@ -354,7 +367,7 @@ const getParticipantData = (otherUser, cachedProfile, mentoriaContext, userId) =
     }
   }
 
-  if (!displayName && cachedProfile?.nombre_completo && cachedProfile.nombre_completo !== 'Usuario') {
+  if (!displayName && cachedProfile?.nombre_completo) {
     displayName = cachedProfile.nombre_completo;
   }
   if (!avatarUrl && cachedProfile?.avatar_url) {
@@ -366,7 +379,7 @@ const getParticipantData = (otherUser, cachedProfile, mentoriaContext, userId) =
     const au = otherUser?.apellido_usuario || '';
     if (nu || au) {
       displayName = `${nu} ${au}`.trim();
-    } else if (otherUser?.name && otherUser.name !== 'N/A' && otherUser.name !== 'Usuario') {
+    } else if (otherUser?.name && otherUser.name !== 'N/A') {
       displayName = otherUser.name;
     }
   }
@@ -396,10 +409,23 @@ const getParticipantData = (otherUser, cachedProfile, mentoriaContext, userId) =
   };
 };
 
-const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel }) => {
+const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel, setMobileView }) => {
   const { user } = useAuth();
-  const members = Object.values(channel.state?.members || {});
-  const otherMember = members.find(m => m.user?.id !== user?.id);
+  const [channelMembers, setChannelMembers] = useState(() => Object.values(channel?.state?.members || []));
+
+  useEffect(() => {
+    if (!channel) return;
+    const members = Object.values(channel.state?.members || []);
+    if (members.length > 0) {
+      setChannelMembers(members);
+      return;
+    }
+    channel.queryMembers({}).then(res => {
+      if (res?.members) setChannelMembers(res.members);
+    }).catch(() => {});
+  }, [channel?.cid]);
+
+  const otherMember = channelMembers.find(m => m.user?.id !== user?.id);
   const otherUserId = otherMember?.user?.id;
 
   const [profile, setProfile] = useState(() => userProfileCache.get(otherUserId) || null);
@@ -408,7 +434,7 @@ const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel }) => {
     if (!otherUserId) return;
     // Solo usar caché si tiene un nombre real (no genérico)
     const cached = userProfileCache.get(otherUserId);
-    if (cached && cached.nombre_completo && cached.nombre_completo !== 'Usuario' && cached.nombre_completo !== 'N/A') {
+    if (cached && cached.nombre_completo && cached.nombre_completo !== 'N/A') {
       setProfile(cached);
       return;
     }
@@ -433,6 +459,34 @@ const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel }) => {
           userProfileCache.set(otherUserId, parsed);
           setProfile(parsed);
         }
+        if (isMounted && !profile) {
+          try {
+            const sess = await supabase.auth.getSession();
+            const tok = sess.data.session?.access_token;
+            if (tok) {
+              const res = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+                body: JSON.stringify({ userId: user?.id, otherUserId }),
+              });
+              if (res.ok) {
+                const td = await res.json();
+                const otherP = td.otherProfile || td.profile;
+                if (otherP?.nombre_completo && isMounted) {
+                  const parts = (otherP.nombre_completo || '').trim().split(/\s+/);
+                  userProfileCache.set(otherUserId, { nombre_usuario: parts[0] || '', apellido_usuario: parts.slice(1).join(' ') || '', avatar_url: otherP.avatar_url || null, nombre_completo: otherP.nombre_completo });
+                  setProfile({ nombre_usuario: parts[0] || '', apellido_usuario: parts.slice(1).join(' ') || '', avatar_url: otherP.avatar_url || null, nombre_completo: otherP.nombre_completo });
+                }
+              }
+            }
+          } catch (_e) {}
+        }
+        if (isMounted && !profile && otherMember?.user) {
+          const otherName = otherMember.user.name || otherMember.user.id?.slice(0, 8) || 'Usuario';
+          const parts = otherName.split(' ');
+          userProfileCache.set(otherUserId, { nombre_usuario: parts[0] || '', apellido_usuario: parts.slice(1).join(' ') || '', avatar_url: otherMember.user.image || null, nombre_completo: otherName });
+          setProfile({ nombre_usuario: parts[0] || '', apellido_usuario: parts.slice(1).join(' ') || '', avatar_url: otherMember.user.image || null, nombre_completo: otherName });
+        }
       } catch (err) {
         console.error('Error fetching member profile:', err);
       }
@@ -448,37 +502,55 @@ const CustomChannelPreview = ({ channel, setActiveChannel, activeChannel }) => {
 
   const lastMessage = channel.state?.latestMessages?.[0];
   const lastMessageText = lastMessage?.text || '';
+  const lastMessageDate = lastMessage?.created_at || channel.state?.last_message_at;
+  const timestampText = formatChatTimestamp(lastMessageDate);
+  const unreadCount = typeof channel.countUnread === 'function' ? channel.countUnread() : 0;
+
   const isMyMessage = lastMessage?.user?.id === user?.id;
   const previewText = lastMessageText
     ? (isMyMessage ? `Tú: ${lastMessageText}` : lastMessageText)
-    : 'Sin mensajes aún';
-  const truncatedPreview = previewText.length > 50 ? previewText.slice(0, 50) + '...' : previewText;
+    : (lastMessage?.attachments?.length ? '📷 Archivo enviado' : 'Sin mensajes aún');
+  const truncatedPreview = previewText.length > 42 ? previewText.slice(0, 42) + '...' : previewText;
   const isActive = activeChannel?.cid === channel.cid;
 
   return (
     <div
-      onClick={() => setActiveChannel(channel)}
-      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
-        isActive ? 'bg-blue-50' : 'hover:bg-gray-50'
+      onClick={() => { setActiveChannel(channel); setMobileView('chat'); }}
+      className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors min-h-[72px] border-b border-gray-100 ${
+        isActive ? 'bg-blue-50/80 font-medium' : 'hover:bg-gray-50'
       }`}
     >
-      {avatarUrl ? (
-        <img
-          src={avatarUrl}
-          alt={displayName}
-          className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200"
-          onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
-        />
-      ) : (
-        <div className="w-10 h-10 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
-          {initials}
-        </div>
-      )}
+      <div className="relative shrink-0">
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt={displayName}
+            className="w-12 h-12 rounded-full object-cover border border-gray-200"
+            onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-12 h-12 bg-[#0f2a5c] rounded-full flex items-center justify-center text-white text-base font-bold">
+            {initials}
+          </div>
+        )}
+      </div>
       <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-baseline">
-          <p className="text-sm font-semibold text-gray-800 truncate">{displayName}</p>
+        <div className="flex justify-between items-center mb-1">
+          <p className="text-sm font-semibold text-gray-900 truncate pr-2">{displayName}</p>
+          {timestampText && (
+            <span className={`text-[11px] shrink-0 ${unreadCount > 0 ? 'text-[#00a67e] font-bold' : 'text-gray-400'}`}>
+              {timestampText}
+            </span>
+          )}
         </div>
-        <p className="text-xs text-gray-500 truncate">{truncatedPreview}</p>
+        <div className="flex justify-between items-center">
+          <p className="text-xs text-gray-500 truncate pr-2">{truncatedPreview}</p>
+          {unreadCount > 0 && (
+            <span className="bg-[#00a67e] text-white text-[10px] font-bold min-w-[20px] h-[20px] px-1.5 rounded-full flex items-center justify-center shrink-0 shadow-sm">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -546,7 +618,7 @@ const ChatHeader = ({
     if (!otherUserId) return;
     // Solo usar caché si tiene un nombre real (no genérico)
     const cached = userProfileCache.get(otherUserId);
-    if (cached && cached.nombre_completo && cached.nombre_completo !== 'Usuario' && cached.nombre_completo !== 'N/A') {
+    if (cached && cached.nombre_completo && cached.nombre_completo !== 'N/A') {
       setProfile(cached);
       return;
     }
@@ -570,6 +642,34 @@ const ChatHeader = ({
           };
           userProfileCache.set(otherUserId, parsed);
           setProfile(parsed);
+        }
+        if (isMounted && !profile) {
+          try {
+            const sess = await supabase.auth.getSession();
+            const tok = sess.data.session?.access_token;
+            if (tok) {
+              const res = await fetch('https://baelhtrbulusonjbdtor.supabase.co/functions/v1/generate-stream-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+                body: JSON.stringify({ userId, otherUserId }),
+              });
+              if (res.ok) {
+                const td = await res.json();
+                const otherP = td.otherProfile || td.profile;
+                if (otherP?.nombre_completo && isMounted) {
+                  const parts = (otherP.nombre_completo || '').trim().split(/\s+/);
+                  userProfileCache.set(otherUserId, { nombre_usuario: parts[0] || '', apellido_usuario: parts.slice(1).join(' ') || '', avatar_url: otherP.avatar_url || null, nombre_completo: otherP.nombre_completo });
+                  setProfile({ nombre_usuario: parts[0] || '', apellido_usuario: parts.slice(1).join(' ') || '', avatar_url: otherP.avatar_url || null, nombre_completo: otherP.nombre_completo });
+                }
+              }
+            }
+          } catch (_e) {}
+        }
+        if (isMounted && !profile && otherMember?.user) {
+          const otherName = otherMember.user.name || otherMember.user.id?.slice(0, 8) || 'Usuario';
+          const parts = otherName.split(' ');
+          userProfileCache.set(otherUserId, { nombre_usuario: parts[0] || '', apellido_usuario: parts.slice(1).join(' ') || '', avatar_url: otherMember.user.image || null, nombre_completo: otherName });
+          setProfile({ nombre_usuario: parts[0] || '', apellido_usuario: parts.slice(1).join(' ') || '', avatar_url: otherMember.user.image || null, nombre_completo: otherName });
         }
       } catch (err) {
         console.error('Error fetching header member profile:', err);
@@ -619,19 +719,13 @@ const ChatHeader = ({
   const avatarUrl = participant.avatar_url;
   const initials = participant.initials;
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-  };
-
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
       <div className="flex items-center gap-3 min-w-0">
         {onBackClick && (
           <button
             onClick={onBackClick}
-            className="md:hidden p-2 hover:bg-gray-100 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Volver"
           >
             <ChevronLeft className="w-5 h-5 text-gray-700" />
@@ -932,6 +1026,7 @@ export default function MensajesPage() {
   const [showCallModal, setShowCallModal] = useState(false);
   const [showFinalizarModal, setShowFinalizarModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [mobileView, setMobileView] = useState('list'); // 'list' or 'chat' for mobile
   const [errorMsg, setErrorMsg] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [pendingFile, setPendingFile] = useState(null);
@@ -1017,7 +1112,9 @@ export default function MensajesPage() {
         }
 
         const streamUserId = authUser.id;
-        const displayName = user?.nombre || authUser.email || 'Usuario';
+        const profile = await ensureProfile(authUser);
+        let displayName = profile?.nombre_completo || user?.user_metadata?.nombre_completo || user?.nombre || authUser.email?.split('@')[0] || 'Usuario';
+        let avatarUrl = profile?.avatar_url || user?.avatar_url || user?.user_metadata?.avatar_url || '';
 
         // Check sessionStorage for cached token (limpiar caché previo para garantizar rol admin)
         const storageKey = `stream_token_${streamUserId}`;
@@ -1026,7 +1123,6 @@ export default function MensajesPage() {
 
         // Fetch new token if no valid cached token
         if (!token) {
-          console.log('[Stream] Fetching new token from Edge Function...');
           const fetchStart = Date.now();
           const session = await supabase.auth.getSession();
           const accessToken = session.data.session?.access_token;
@@ -1041,8 +1137,6 @@ export default function MensajesPage() {
             body: JSON.stringify({ userId: streamUserId })
           });
 
-          console.log('[Stream] Edge Function response:', response.status, `(${Date.now() - fetchStart}ms)`);
-
           if (!response.ok) {
             const errorText = await response.text();
             throw new Error(`Error HTTP ${response.status}: ${errorText}`);
@@ -1050,30 +1144,30 @@ export default function MensajesPage() {
 
           const tokenData = await response.json();
           token = tokenData.token;
-          console.log('[Stream] Token received, length:', token?.length);
+          if (tokenData.profile?.nombre_completo) {
+            displayName = tokenData.profile.nombre_completo;
+            avatarUrl = tokenData.profile.avatar_url || avatarUrl;
+          }
 
           // Cache token with expiration (decode JWT to get exp)
           try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             const expiresAt = payload.exp ? payload.exp * 1000 : Date.now() + 3600000; // JWT exp is in seconds, fallback 1 hour
             sessionStorage.setItem(storageKey, JSON.stringify({ token, expiresAt }));
-            console.log('[Stream] Cached new token, expires:', expiresAt ? new Date(expiresAt).toISOString() : 'unknown');
           } catch (e) {
-            console.warn('[Stream] Failed to cache token:', e);
+            /* Cache error handled silently */
           }
         }
 
         await Promise.race([
           client.connectUser(
-            { id: streamUserId, name: displayName, image: '' },
+            { id: streamUserId, name: displayName, image: avatarUrl },
             token
           ),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Connection timeout (30s)')), 30000)
           )
         ]);
-
-        console.log('[Stream] connectUser successful');
 
         if (state.cancelled) return;
 
@@ -1102,7 +1196,10 @@ export default function MensajesPage() {
     return () => {
       state.cancelled = true;
       if (state.timeoutId) clearTimeout(state.timeoutId);
-      if (state.client) state.client.disconnectUser();
+      if (state.client) {
+        state.client.disconnectUser();
+        setChatClient(null);
+      }
     };
   }, [user?.id, navigate]);
 
@@ -1333,34 +1430,31 @@ export default function MensajesPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f5f7fa] font-sans">
+    <div className="flex h-screen h-[100dvh] bg-[#f5f7fa] font-sans overflow-hidden">
       <style>{messageBubbleStyle}</style>
-      <Sidebar />
+      <Sidebar hideMobileMenu={mobileView === 'chat'} />
 
-      <div className="flex-1 lg:ml-64 flex flex-col h-screen">
-        <div className="px-4 lg:px-8 py-4 mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex-1 lg:ml-64 flex flex-col h-full overflow-hidden ml-0 relative">
+        <div className={`px-4 lg:px-8 py-3 lg:py-4 border-b lg:border-none border-gray-200 bg-white lg:bg-transparent ${mobileView === 'chat' ? 'hidden lg:block' : 'block'}`}>
+          <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">Mensajes</h1>
-              <p className="text-gray-500 text-sm mt-2">Chatea con mentores y estudiantes.</p>
+              <h1 className="text-xl lg:text-2xl font-bold text-gray-800">Mensajes</h1>
+              <p className="hidden sm:block text-gray-500 text-sm mt-0.5">Chatea con mentores y estudiantes.</p>
             </div>
-            <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className="flex items-center gap-2 lg:gap-4">
               <Header nombreUsuario={user?.nombre || 'Usuario'} initials={user?.nombre ? user.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U'} avatarUrl={user?.avatar_url} />
             </div>
           </div>
         </div>
 
-        <Chat client={chatClient} theme="messaging light">
+        <Chat client={chatClient} theme="messaging light" key={chatClient?.user?.id || 'disconnected'}>
           {channelFromUrl && (
-            <ChannelSelector
-              channelId={channelFromUrl}
-              onSelect={handleChannelSelectedFromUrl}
-            />
+            <ChannelSelector channelId={channelFromUrl} setMobileView={setMobileView} />
           )}
-          <div className="flex flex-1 overflow-hidden">
-            {/* LEFT PANEL - CHANNEL LIST */}
-            <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-gray-200 flex flex-col ${activeChannel ? 'hidden md:flex' : ''}`}>
-              <div className="px-4 pt-4 pb-2">
+          <div className="flex flex-1 overflow-hidden h-full relative">
+            {/* LEFT PANEL - CHANNEL LIST - Always rendered on desktop, conditional on mobile */}
+            <div className={`w-full lg:w-80 lg:w-96 bg-white border-r border-gray-200 flex flex-col h-full ${mobileView === 'chat' ? 'hidden lg:flex' : 'flex'}`}>
+              <div className="px-4 pt-3 pb-2 bg-white">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
@@ -1368,7 +1462,7 @@ export default function MensajesPage() {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Buscar conversaciones..."
-                    className="w-full bg-gray-100 rounded-full pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-[#0f2a5c]"
+                    className="w-full bg-gray-100 rounded-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#0f2a5c]"
                   />
                 </div>
               </div>
@@ -1377,29 +1471,32 @@ export default function MensajesPage() {
                   filters={{ type: 'messaging', members: { $in: [user.id] } }}
                   sort={{ updated_at: -1, last_message_at: -1 }}
                   options={{ limit: 50, state: true, watch: true }}
-                  Preview={CustomChannelPreview}
+                  Preview={(props) => <CustomChannelPreview {...props} setMobileView={setMobileView} activeChannel={activeChannel} />}
                 />
               </div>
             </div>
 
-            {/* RIGHT PANEL - CHAT OR EMPTY STATE */}
-            <div className={`flex-1 flex flex-col bg-white ${!activeChannel ? 'hidden md:flex' : ''}`}>
-              <RightPanelContent
-                CustomAttachment={CustomAttachment}
-                chatBlocked={chatBlocked}
-                setChatBlocked={setChatBlocked}
-                setShowCallModal={setShowCallModal}
-                setShowProfileModal={setShowProfileModal}
-                setShowClearChatModal={setShowClearChatModal}
-                setShowDeleteChatModal={setShowDeleteChatModal}
-                mutedChats={mutedChats}
-                setMutedChats={setMutedChats}
-                uploadError={uploadError}
-                esMentor={esMentor}
-                userId={user?.id}
-                onBackClick={() => setActiveChannel(null)}
-                mentoriaBlockedMsg={mentoriaBlockedMsg}
-              />
+            {/* RIGHT PANEL - CHAT OR EMPTY STATE - Full height overlay on mobile when viewing chat */}
+            <div className={`flex-1 flex flex-col bg-white h-full ${mobileView === 'list' ? 'hidden lg:flex' : 'flex'} ${mobileView === 'chat' ? 'fixed inset-0 z-30 lg:relative lg:inset-auto lg:z-auto' : ''}`}>
+              <div className="flex-1 overflow-hidden flex flex-col h-full">
+                <RightPanelContent
+                  CustomAttachment={CustomAttachment}
+                  chatBlocked={chatBlocked}
+                  setChatBlocked={setChatBlocked}
+                  setShowCallModal={setShowCallModal}
+                  setShowProfileModal={setShowProfileModal}
+                  setShowClearChatModal={setShowClearChatModal}
+                  setShowDeleteChatModal={setShowDeleteChatModal}
+                  setShowFinalizarModal={setShowFinalizarModal}
+                  mutedChats={mutedChats}
+                  setMutedChats={setMutedChats}
+                  uploadError={uploadError}
+                  esMentor={esMentor}
+                  userId={user?.id}
+                  onBackClick={() => { setActiveChannel(null); setMobileView('list'); }}
+                  mentoriaBlockedMsg={mentoriaBlockedMsg}
+                />
+              </div>
             </div>
           </div>
         </Chat>

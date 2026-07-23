@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../hooks/useAuth.jsx'
 import { Users, UserCheck, BookOpen, LogOut } from 'lucide-react'
 import { getAdminStats, getPendingSeniors, approveSenior, rejectSenior } from '../lib/supabaseServices'
 

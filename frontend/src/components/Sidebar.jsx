@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import InviteModal from './InviteModal';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth.jsx';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', route: '/dashboard' },
@@ -15,7 +15,7 @@ const menuItems = [
   { icon: Settings, label: 'Configuración', route: '/configuracion' },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ hideMobileMenu = false }) {
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -96,14 +96,16 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Hamburger button - mobile only */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 bg-white shadow-lg rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-50 transition-colors"
-        aria-label="Abrir menú"
-      >
-        <Menu className="w-5 h-5 text-gray-700" />
-      </button>
+      {/* Hamburger button - mobile only - moved to top right */}
+      {!hideMobileMenu && (
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="lg:hidden fixed top-4 right-4 z-50 bg-white shadow-lg rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-50 transition-colors"
+          aria-label="Abrir menú"
+        >
+          <Menu className="w-5 h-5 text-gray-700" />
+        </button>
+      )}
 
       {/* Mobile drawer */}
       {mobileOpen && (

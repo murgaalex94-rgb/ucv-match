@@ -81,7 +81,6 @@ export const AuthProvider = ({ children }) => {
     // 2. Escuchar cambios de autenticación en tiempo real
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth event:', event)
 
         if (event === 'SIGNED_IN' && session?.user) {
           // Evitar cargar el perfil dos veces si initAuth ya lo hizo

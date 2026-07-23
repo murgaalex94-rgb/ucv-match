@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { User, Lock, Eye, EyeOff, ArrowRight, X, Globe } from 'lucide-react'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../hooks/useAuth.jsx'
 import HelpButton from '../components/HelpButton'
 import { supabase } from '../lib/supabase'
 import { Turnstile } from '@marsidev/react-turnstile'
@@ -319,18 +319,24 @@ const LoginPage = () => {
                 className="w-full pl-11 pr-12 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
                 required
               />
-              {/* Geo indicator */}
+              {/* Geo indicator - Desktop: inside input, Mobile: below input */}
               {!geoChecked && (
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs md:block hidden">
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                   Verificando...
                 </div>
               )}
               {!geoAllowed && geoChecked && (
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-blue-600 text-xs flex items-center gap-1">
-                  <Globe className="w-4 h-4" />
-                  Acceso solo desde Perú
-                </div>
+                <>
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-blue-600 text-xs flex items-center gap-1 md:block hidden">
+                    <Globe className="w-4 h-4" />
+                    Acceso solo desde Perú
+                  </div>
+                  <div className="text-blue-600 text-xs flex items-center gap-1 mt-2 md:hidden">
+                    <Globe className="w-4 h-4" />
+                    Acceso solo desde Perú
+                  </div>
+                </>
               )}
               {geoAllowed && geoChecked && (
                 <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-green-500 text-xs flex items-center gap-1">

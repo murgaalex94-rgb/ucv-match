@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth.jsx';
 
 const achievements = [
   { id: 1, title: 'Primera Mentoría', description: 'Completa tu primera sesión de mentoría', icon: Star, progress: 100, points: 50, unlocked: true, date: '12 Jun 2026', rarity: 'Común' },

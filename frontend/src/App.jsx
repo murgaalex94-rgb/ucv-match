@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
-import { useAuth } from './context/AuthContext'
+import { useAuth } from './hooks/useAuth.jsx'
 import ProtectedRoute from './components/ProtectedRoute'
 import { supabase } from './lib/supabase'
 import LandingPage from './pages/LandingPage'

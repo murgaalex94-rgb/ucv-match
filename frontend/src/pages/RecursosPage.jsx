@@ -255,7 +255,7 @@ export default function RecursosPage() {
           {['Todos los recursos', 'Recientes', 'Más descargados', 'Favoritos', 'Mis recursos'].map((tab, idx) => (
             <button
               key={tab}
-              onClick={() => console.log(tab)}
+              onClick={() => {}}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                 idx === 0
                   ? 'text-[#0f2a5c] border-b-2 border-[#0f2a5c]'

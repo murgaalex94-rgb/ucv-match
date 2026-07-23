@@ -44,9 +44,19 @@ body {
   border-radius: 16px 16px 16px 4px;
 }
 
-/* Message list background */
+/* Window & Message list container layout */
+.str-chat__window, .str-chat__main-panel, .str-chat__container {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  overflow: hidden !important;
+}
+
 .str-chat__list {
-  background: transparent;
+  flex: 1 !important;
+  overflow-y: auto !important;
+  background: transparent !important;
   padding: 8px 0;
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { BookOpen, Mail, Calendar, LogOut, Plus } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth.jsx'
+import { BookOpen, Mail, Calendar, LogOut, Plus, X, User, Briefcase, Check, X as XIcon } from 'lucide-react'
 import { getSeniorStats, getSolicitudesMentoria, aceptarSolicitud, rechazarSolicitud, createOferta } from '../lib/supabaseServices'
 
 const DashboardSenior = () => {
@@ -10,6 +10,7 @@ const DashboardSenior = () => {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(null)
   const [showModal, setShowModal] = useState(false)
+  const [showSolicitudesModal, setShowSolicitudesModal] = useState(false)
   const [ofertaTitulo, setOfertaTitulo] = useState('')
   const [ofertaDesc, setOfertaDesc] = useState('')
   const [ofertaMateria, setOfertaMateria] = useState('')
@@ -51,6 +52,26 @@ const DashboardSenior = () => {
     await rechazarSolicitud(id)
     await loadData()
     setActionLoading(null)
+  }
+
+  const handleAcceptModal = async (id) => {
+    setActionLoading(id)
+    await aceptarSolicitud(id)
+    await loadData()
+    setActionLoading(null)
+    if (solicitudes.length <= 1) {
+      setShowSolicitudesModal(false)
+    }
+  }
+
+  const handleRejectModal = async (id) => {
+    setActionLoading(id)
+    await rechazarSolicitud(id)
+    await loadData()
+    setActionLoading(null)
+    if (solicitudes.length <= 1) {
+      setShowSolicitudesModal(false)
+    }
   }
 
   const handleCreateOferta = async () => {
@@ -105,7 +126,17 @@ const DashboardSenior = () => {
             <h1 className="text-3xl font-bold text-slate-800">Dashboard</h1>
             <p className="text-slate-600">Bienvenido, {user?.nombre}</p>
           </div>
-          <div className="flex gap-4">
+<div className="flex gap-4">
+              <button
+                onClick={() => setShowSolicitudesModal(true)}
+                className="relative flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+              >
+                <Mail className="w-4 h-4" />
+                Gestionar Solicitudes
+                <span className={`absolute -top-1 -right-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[18px] text-center font-bold transition-all ${stats.solicitudes > 0 ? 'animate-pulse' : 'opacity-50'}`}>
+                  {stats.solicitudes}
+                </span>
+              </button>
             <button
               onClick={() => setShowModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -160,45 +191,62 @@ const DashboardSenior = () => {
               </div>
             </div>
 
-            {/* Solicitudes List */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-bold text-slate-800 mb-4">Solicitudes de Mentoría</h2>
-              {solicitudes.length === 0 ? (
-                <p className="text-slate-600 text-center py-8">No hay solicitudes pendientes</p>
-              ) : (
-                <div className="space-y-4">
-                  {solicitudes.map((solicitud) => (
-                    <div key={solicitud.id} className="border border-slate-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-semibold text-slate-800">{solicitud.estudiante?.nombre_completo || 'Estudiante'}</h3>
-                          <p className="text-slate-600 text-sm mt-1">{solicitud.materia}</p>
-                          <p className="text-slate-500 text-sm mt-2">{solicitud.descripcion || 'Sin descripción'}</p>
+            {/* Modal Gestionar Solicitudes */}
+            {showSolicitudesModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]" onClick={() => setShowSolicitudesModal(false)}>
+                <div className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-slate-800">Solicitudes Pendientes</h2>
+                    <button onClick={() => setShowSolicitudesModal(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">
+                      &times;
+                    </button>
+                  </div>
+                  {solicitudes.length === 0 ? (
+                    <p className="text-slate-600 text-center py-8">No hay solicitudes pendientes</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {solicitudes.map((solicitud) => (
+                        <div key={solicitud.id} className="border border-slate-200 rounded-xl p-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1 mr-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 font-medium">
+                                  {(solicitud.estudiante?.nombre_completo || 'E')[0].toUpperCase()}
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-slate-800 text-sm">{solicitud.estudiante?.nombre_completo || 'Estudiante'}</h3>
+                                  <p className="text-slate-500 text-xs">{solicitud.estudiante?.carrera || 'Carrera no especificada'}</p>
+                                </div>
+                              </div>
+                              <p className="text-slate-600 text-sm">{solicitud.materia}</p>
+                              <p className="text-slate-500 text-xs mt-1">{solicitud.descripcion || 'Sin descripción'}</p>
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => handleAcceptModal(solicitud.id)}
+                                disabled={actionLoading === solicitud.id}
+                                className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors disabled:opacity-50 min-w-[80px]"
+                              >
+                                {actionLoading === solicitud.id ? '...' : 'Aceptar'}
+                              </button>
+                              <button
+                                onClick={() => handleRejectModal(solicitud.id)}
+                                disabled={actionLoading === solicitud.id}
+                                className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors disabled:opacity-50 min-w-[80px]"
+                              >
+                                {actionLoading === solicitud.id ? '...' : 'Rechazar'}
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleAccept(solicitud.id)}
-                            disabled={actionLoading === solicitud.id}
-                            className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm disabled:opacity-50"
-                          >
-                            {actionLoading === solicitud.id ? '...' : 'Aceptar'}
-                          </button>
-                          <button
-                            onClick={() => handleReject(solicitud.id)}
-                            disabled={actionLoading === solicitud.id}
-                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm disabled:opacity-50"
-                          >
-                            {actionLoading === solicitud.id ? '...' : 'Rechazar'}
-                          </button>
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* Modal placeholder */}
+            {/* Modal Crear Oferta */}
             {showModal && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
                 <div className="bg-white rounded-lg p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
