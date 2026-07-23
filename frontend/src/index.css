@@ -161,9 +161,28 @@ body {
   opacity: 0.9;
 }
 
-/* Channel list */
+/* Channel list — force all internal Stream Chat wrappers to fill parent */
 .str-chat-channel-list {
   background: white;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  flex: 1 !important;
+  overflow-y: auto !important;
+}
+
+.str-chat__channel-list-messenger {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.str-chat__channel-list-messenger__main {
+  width: 100% !important;
+  flex: 1 !important;
 }
 
 /* Message actions menu (three dots) */

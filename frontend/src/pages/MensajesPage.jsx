@@ -1467,10 +1467,13 @@ export default function MensajesPage() {
           {channelFromUrl && (
             <ChannelSelector channelId={channelFromUrl} setMobileView={setMobileView} />
           )}
-          <div className="flex flex-1 overflow-hidden h-full relative">
-            {/* LEFT PANEL - CHANNEL LIST - Always rendered on desktop, conditional on mobile */}
-            <div className={`w-full lg:w-80 lg:w-96 bg-white border-r border-gray-200 flex flex-col h-full ${mobileView === 'chat' ? 'hidden lg:flex' : 'flex'}`}>
-              <div className="px-4 pt-3 pb-2 bg-white">
+          <div className="flex flex-1 overflow-hidden relative" style={{ height: 'calc(100% - 0px)' }}>
+            {/* LEFT PANEL - CHANNEL LIST */}
+            <div
+              className={`w-full lg:w-96 bg-white border-r border-gray-200 flex flex-col ${mobileView === 'chat' ? 'hidden lg:flex' : 'flex'}`}
+              style={{ height: '100%' }}
+            >
+              <div className="px-4 pt-3 pb-2 bg-white shrink-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
@@ -1482,12 +1485,26 @@ export default function MensajesPage() {
                   />
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="px-4 pt-2 pb-1 shrink-0">
+                <h2 className="text-base font-bold text-gray-800">Chats</h2>
+              </div>
+              <div className="flex-1 overflow-y-auto" style={{ minHeight: '200px' }}>
                 {channelFilters && (
                   <ChannelList
                     filters={channelFilters}
                     sort={channelSort}
                     options={channelOptions}
+                    EmptyStateIndicator={() => (
+                      <div className="flex flex-col items-center justify-center py-12 px-4">
+                        <MessageSquare className="w-12 h-12 text-gray-300 mb-3" />
+                        <p className="text-sm text-gray-400 text-center">No tienes conversaciones aún</p>
+                      </div>
+                    )}
+                    LoadingIndicator={() => (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="w-8 h-8 border-4 border-[#0f2a5c] border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
                     Preview={(props) => (
                       <CustomChannelPreview
                         {...props}
