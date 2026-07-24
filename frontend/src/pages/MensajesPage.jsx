@@ -15,6 +15,7 @@ import {
   useMessageComposerController,
 } from 'stream-chat-react';
 import 'stream-chat-react/dist/css/index.css';
+import { sendPushNotification } from '../lib/pushNotifications';
 import {
   Search, ChevronDown, ChevronLeft, MoreHorizontal,
   Phone, Video, X, Info, Send,
@@ -602,6 +603,27 @@ const ChatHeader = ({
     // También escuchar el evento de watch completado
     channel.on('channel.watch', handleMemberEvent);
 
+    // Escuchar nuevos mensajes para enviar push notifications
+    const handleNewMessage = (event) => {
+      const message = event.message;
+      if (message.user?.id !== user.id) {
+        // El mensaje fue enviado por otro usuario, enviar notificación
+        const senderName = message.user?.name || 'Alguien';
+        const messageText = message.text || 'Te enviaron un mensaje';
+        sendPushNotification(user.id, `Nuevo mensaje de ${senderName}`, messageText);
+      } else {
+        // El mensaje fue enviado por el usuario actual, enviar notificación a otros miembros
+        const otherMembers = channel.state.members;
+        Object.keys(otherMembers).forEach(memberId => {
+          if (memberId !== user.id) {
+            const messageText = message.text || 'Te enviaron un mensaje';
+            sendPushNotification(memberId, 'Nuevo mensaje', messageText);
+          }
+        });
+      }
+    };
+    channel.on('message.new', handleNewMessage);
+
     // Si no hay miembros aún, intentar watch() para cargarlos
     if (currentMembers.length === 0) {
       channel.watch().then(() => {
@@ -614,8 +636,9 @@ const ChatHeader = ({
       channel.off('member.updated', handleMemberEvent);
       channel.off('channel.updated', handleMemberEvent);
       channel.off('channel.watch', handleMemberEvent);
+      channel.off('message.new', handleNewMessage);
     };
-  }, [channel?.cid]);
+  }, [channel?.cid, user.id]);
 
   const otherMember = channelMembers.find(m => m.user?.id !== userId);
   const otherUserId = otherMember?.user?.id;
@@ -1458,6 +1481,15 @@ export default function MensajesPage() {
       const attachment = { type: 'image', image_url: res.file, fallback: pendingFile.name, created_at: new Date().toISOString() };
       const msg = fileMessageText.trim() ? { text: fileMessageText.trim(), attachments: [attachment] } : { attachments: [attachment] };
       await activeChannel.sendMessage(msg);
+      
+      // Send push notification to other users in channel
+      const otherMembers = activeChannel.state.members;
+      Object.keys(otherMembers).forEach(memberId => {
+        if (memberId !== user.id) {
+          sendPushNotification(memberId, 'Nuevo mensaje', fileMessageText.trim() || 'Te enviaron una imagen');
+        }
+      });
+      
       setPendingFile(null);
       setPendingFileType(null);
       setShowFilePreview(false);
@@ -1475,6 +1507,15 @@ export default function MensajesPage() {
       const attachment = { type: 'file', asset_url: res.file, title: pendingFile.name, file_size: pendingFile.size, mime_type: pendingFile.type, created_at: new Date().toISOString() };
       const msg = fileMessageText.trim() ? { text: fileMessageText.trim(), attachments: [attachment] } : { attachments: [attachment] };
       await activeChannel.sendMessage(msg);
+      
+      // Send push notification to other users in channel
+      const otherMembers = activeChannel.state.members;
+      Object.keys(otherMembers).forEach(memberId => {
+        if (memberId !== user.id) {
+          sendPushNotification(memberId, 'Nuevo mensaje', fileMessageText.trim() || 'Te enviaron un video');
+        }
+      });
+      
       setPendingFile(null);
       setPendingFileType(null);
       setShowFilePreview(false);
@@ -1682,6 +1723,15 @@ export default function MensajesPage() {
               const attachment = { type: 'file', asset_url: res.file, title: pendingFile.name, file_size: pendingFile.size, mime_type: pendingFile.type, created_at: new Date().toISOString() };
               const msg = text.trim() ? { text: text.trim(), attachments: [attachment] } : { attachments: [attachment] };
               await activeChannel.sendMessage(msg);
+              
+              // Send push notification to other users in channel
+              const otherMembers = activeChannel.state.members;
+              Object.keys(otherMembers).forEach(memberId => {
+                if (memberId !== user.id) {
+                  sendPushNotification(memberId, 'Nuevo mensaje', text.trim() || `Te enviaron ${pendingFile.name}`);
+                }
+              });
+              
               setPendingFile(null);
               setPendingFileType(null);
               setShowFilePreview(false);

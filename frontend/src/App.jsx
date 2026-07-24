@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { useAuth } from './hooks/useAuth.jsx'
+import { usePushNotifications } from './hooks/usePushNotifications.js'
 import ProtectedRoute from './components/ProtectedRoute'
 import { supabase } from './lib/supabase'
 import LandingPage from './pages/LandingPage'
@@ -44,6 +45,9 @@ function SuspenseWrapper({ children }) {
 function App() {
   const { user, loading } = useAuth()
   const location = useLocation()
+
+  // Push notifications
+  usePushNotifications(user)
 
   // Keep-alive: evita que Supabase se duerma en plan gratuito
   useEffect(() => {
