@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { User, Lock, Eye, EyeOff, ArrowRight, X, Globe } from 'lucide-react'
+import { User, Lock, Eye, EyeOff, ArrowRight, X, Globe, Home } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth.jsx'
 import HelpButton from '../components/HelpButton'
 import { supabase } from '../lib/supabase'
@@ -288,8 +288,19 @@ const LoginPage = () => {
       <div className="flex-1 flex flex-col justify-center items-center bg-white px-4 md:p-8 relative">
         <div className="w-full max-w-md">
 
+          {/* Back to Home Button */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('/')}
+            className="absolute top-0 left-0 flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-[#0f2a5c] hover:bg-gray-100 rounded-lg transition mb-4"
+          >
+            <Home className="w-5 h-5" />
+            <span className="text-sm font-medium">Volver al inicio</span>
+          </motion.button>
+
 {/* Logo Central */}
-          <div className="flex flex-col items-center gap-2 mb-8">
+          <div className="flex flex-col items-center gap-2 mb-8 mt-12">
             <img src="/escudo_ucv.png" alt="Logo UCV" className="w-14 h-14 object-contain bg-transparent" />
             <span className="text-2xl font-bold text-[#0f2a5c] tracking-wide">UCV Match</span>
           </div>
