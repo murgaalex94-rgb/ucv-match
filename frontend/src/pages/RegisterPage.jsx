@@ -218,11 +218,11 @@ const RegisterPage = () => {
       className="flex w-full h-screen bg-white font-sans">
 
       {/* COLUMNA IZQUIERDA - IMAGEN ÚNICA */}
-      <div className="hidden md:flex md:w-1/2 h-full bg-[#061539] relative overflow-hidden items-center justify-center p-2 lg:p-6">
+      <div className="hidden md:flex md:w-1/2 h-full relative overflow-hidden">
         <img
           src="/Imagen_crear cuenta.png"
           alt="Encuentra tu mentor académico - UCV Match"
-          className="w-full h-full object-contain max-h-full select-none"
+          className="w-full h-full object-cover object-top select-none"
         />
       </div>
 
