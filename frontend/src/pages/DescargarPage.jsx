@@ -4,8 +4,8 @@ import { motion } from 'framer-motion';
 import { Download, Shield, Smartphone, HardDrive, Info, ChevronLeft, ChevronRight, Home, Star, CheckCircle } from 'lucide-react';
 
 const APP_VERSION = '1.0.0';
-const APP_SIZE = '152 MB';
-const APK_URL = '/UCV-Match.apk';
+const APP_SIZE = '145 MB';
+const APK_URL = 'https://github.com/murgaalex94-rgb/ucv-match/releases/download/v1.0.0/UCV-Match.apk';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -22,12 +22,7 @@ export default function DescargarPage() {
 
   const handleDownload = () => {
     setDownloadStarted(true);
-    const link = document.createElement('a');
-    link.href = APK_URL;
-    link.download = 'UCV-Match.apk';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    window.open(APK_URL, '_blank');
     setTimeout(() => setDownloadStarted(false), 4000);
   };
 
