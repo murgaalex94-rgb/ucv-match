@@ -1,8 +1,8 @@
-# Android (Capacitor build)
-android/
+# Android (Capacitor build) - entire directory
+android
 
 # Node modules (Vercel installs its own)
-node_modules/
+node_modules
 
 # APK files
 *.apk
@@ -20,19 +20,25 @@ capacitor.config.json
 vite.log
 
 # Large PDF files in public folder
-public/Carreras universitarias/
+**/Carreras universitarias/**
 
 # Build artifacts
-dist/
-build/
+dist
+build
 
 # Git
-.git/
+.git
 
 # IDE
-.vscode/
-.idea/
+.vscode
+.idea
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# Capacitor build artifacts
+.capacitor
+**/mergeDebugAssets/**
+**/compressDebugAssets/**
+**/build/outputs/**

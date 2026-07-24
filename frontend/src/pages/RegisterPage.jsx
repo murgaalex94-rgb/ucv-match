@@ -215,20 +215,20 @@ const RegisterPage = () => {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.4, ease: 'easeInOut' }}
-      className="flex w-full min-h-screen bg-white overflow-y-auto font-sans">
+      className="flex w-full h-screen bg-white font-sans">
 
       {/* COLUMNA IZQUIERDA - IMAGEN ÚNICA */}
-      <div className="hidden md:flex md:w-1/2 h-screen relative bg-[#0f2a5c]">
-        <img 
-          src="/Imagen_crear cuenta.png" 
-          alt="Panel UCV Match" 
-          className="w-full h-full object-fill"
+      <div className="hidden md:flex md:w-1/2 h-full bg-[#061539] relative overflow-hidden items-center justify-center p-2 lg:p-6">
+        <img
+          src="/Imagen_crear cuenta.png"
+          alt="Encuentra tu mentor académico - UCV Match"
+          className="w-full h-full object-contain max-h-full select-none"
         />
       </div>
 
       {/* COLUMNA DERECHA - FORMULARIO */}
-      <div className="flex-1 flex flex-col justify-center items-center bg-white pt-16 pb-8 px-4 md:px-8 relative min-h-screen overflow-y-auto">
-        <div className="w-full max-w-md">
+      <div className="flex-1 flex flex-col items-center bg-white relative h-full overflow-y-auto">
+        <div className="w-full max-w-md py-8 px-4 md:px-8">
 
           {/* Logo Central */}
           <div className="flex items-center justify-center gap-3 mb-6">
