@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Download, Shield, Smartphone, HardDrive, Info, ChevronLeft, ChevronRight, Home, Star, CheckCircle } from 'lucide-react';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 const APP_SIZE = '14 MB';
-const APK_URL = 'https://v2pmoancrwlvqqca.public.blob.vercel-storage.com/UCV-Match-Release-26XSedd6sWYcQ0iwgjrQMtmku2z7MY.apk';
+const APK_URL = 'https://v2pmoancrwlvqqca.public.blob.vercel-storage.com/UCV-Match-Release-vIfXrDmdiml3y8GCoYNcfxYgD8c0Ws.apk';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
