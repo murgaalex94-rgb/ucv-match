@@ -578,6 +578,7 @@ const ChatHeader = ({
   pendingCount,
   esMentor,
   userId,
+  user,
 }) => {
   const { channel } = useChatContext();
   const [showMenu, setShowMenu] = useState(false);
@@ -948,6 +949,7 @@ const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setS
             pendingCount={pendingCount}
             esMentor={esMentor}
             userId={userId}
+            user={user}
           />
           <MessageList />
           {chatBlocked && (
