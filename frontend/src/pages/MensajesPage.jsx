@@ -607,16 +607,16 @@ const ChatHeader = ({
     // Escuchar nuevos mensajes para enviar push notifications
     const handleNewMessage = (event) => {
       const message = event.message;
-      if (message.user?.id !== user.id) {
+      if (message.user?.id !== user?.id) {
         // El mensaje fue enviado por otro usuario, enviar notificación
         const senderName = message.user?.name || 'Alguien';
         const messageText = message.text || 'Te enviaron un mensaje';
-        sendPushNotification(user.id, `Nuevo mensaje de ${senderName}`, messageText);
+        sendPushNotification(user?.id, `Nuevo mensaje de ${senderName}`, messageText);
       } else {
         // El mensaje fue enviado por el usuario actual, enviar notificación a otros miembros
         const otherMembers = channel.state.members;
         Object.keys(otherMembers).forEach(memberId => {
-          if (memberId !== user.id) {
+          if (memberId !== user?.id) {
             const messageText = message.text || 'Te enviaron un mensaje';
             sendPushNotification(memberId, 'Nuevo mensaje', messageText);
           }
@@ -639,7 +639,7 @@ const ChatHeader = ({
       channel.off('channel.watch', handleMemberEvent);
       channel.off('message.new', handleNewMessage);
     };
-  }, [channel?.cid, user.id]);
+  }, [channel?.cid, user?.id]);
 
   const otherMember = channelMembers.find(m => m.user?.id !== userId);
   const otherUserId = otherMember?.user?.id;
@@ -878,7 +878,7 @@ const ChatHeader = ({
   );
 };
 
-const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setShowCallModal, setShowProfileModal, setShowClearChatModal, setShowDeleteChatModal, setShowFinalizarModal, mutedChats, setMutedChats, uploadError, onBackClick, esMentor, userId, mentoriaBlockedMsg }) => {
+const RightPanelContent = ({ CustomAttachment, chatBlocked, setChatBlocked, setShowCallModal, setShowProfileModal, setShowClearChatModal, setShowDeleteChatModal, setShowFinalizarModal, mutedChats, setMutedChats, uploadError, onBackClick, esMentor, userId, user, mentoriaBlockedMsg }) => {
   const { channel } = useChatContext();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
@@ -1088,7 +1088,7 @@ export default function MensajesPage() {
 
   const channelFilters = useMemo(() => {
     if (!user?.id) return null;
-    return { type: 'messaging', members: { $in: [user.id] } };
+    return { type: 'messaging', members: { $in: [user?.id] } };
   }, [user?.id]);
 
   const channelSort = useMemo(() => ({ updated_at: -1, last_message_at: -1 }), []);
@@ -1096,7 +1096,7 @@ export default function MensajesPage() {
 
   // Manual channel query for mobile — bypasses ChannelList CSS issues
   useEffect(() => {
-    if (!chatClient || !channelFilters) return;
+    if (!chatClient || !channelFilters || !chatClient.userID) return;
     let cancelled = false;
     const fetchChannels = async () => {
       setManualChannelsLoading(true);
@@ -1137,7 +1137,7 @@ export default function MensajesPage() {
     if (!activeChannel || !user) return;
     setMentoriaBlockedMsg('');
     const members = Object.values(activeChannel.state?.members || {});
-    const otherMember = members.find(m => m.user?.id !== user.id);
+    const otherMember = members.find(m => m.user?.id !== user?.id);
     const otherUserId = otherMember?.user?.id;
     if (!otherUserId) return;
 
@@ -1145,7 +1145,7 @@ export default function MensajesPage() {
       const { data } = await supabase
         .from('mentorias')
         .select('estado')
-        .or(`and(estudiante_id.eq.${user.id},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${user.id},estudiante_id.eq.${otherUserId})`)
+        .or(`and(estudiante_id.eq.${user?.id},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${user?.id},estudiante_id.eq.${otherUserId})`)
         .in('estado', ['Pendiente', 'Activa'])
         .order('fecha_solicitud', { ascending: false })
         .limit(1)
@@ -1195,8 +1195,8 @@ export default function MensajesPage() {
 
         const streamUserId = authUser.id;
         const profile = await ensureProfile(authUser);
-        let displayName = profile?.nombre_completo || user?.user_metadata?.nombre_completo || user?.nombre || authUser.email?.split('@')[0] || 'Usuario';
-        let avatarUrl = profile?.avatar_url || user?.avatar_url || user?.user_metadata?.avatar_url || '';
+        let displayName = profile?.nombre_completo || authUser?.user_metadata?.nombre_completo || authUser?.user_metadata?.nombre || authUser.email?.split('@')[0] || 'Usuario';
+        let avatarUrl = profile?.avatar_url || authUser?.user_metadata?.avatar_url || '';
 
         // Check sessionStorage for cached token (limpiar caché previo para garantizar rol admin)
         const storageKey = `stream_token_${streamUserId}`;
@@ -1340,7 +1340,7 @@ export default function MensajesPage() {
 
         // Paso 2: Actualizar la tabla mentorias en Supabase
         const members = Object.values(activeChannel.state?.members || {});
-        const otherMember = members.find(m => m.user?.id !== user.id);
+        const otherMember = members.find(m => m.user?.id !== user?.id);
         const otherUserId = otherMember?.user?.id;
 
         if (otherUserId) {
@@ -1350,7 +1350,7 @@ export default function MensajesPage() {
               estado: 'Cancelada',
               stream_chat_channel_id: null,
             })
-            .or(`and(estudiante_id.eq.${user.id},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${user.id},estudiante_id.eq.${otherUserId})`)
+            .or(`and(estudiante_id.eq.${user?.id},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${user?.id},estudiante_id.eq.${otherUserId})`)
             .in('estado', ['Pendiente', 'Activa']);
         }
 
@@ -1370,7 +1370,7 @@ export default function MensajesPage() {
     try {
       if (activeChannel && user) {
         const members = Object.values(activeChannel.state?.members || {});
-        const otherMember = members.find(m => m.user?.id !== user.id);
+        const otherMember = members.find(m => m.user?.id !== user?.id);
         const otherUserId = otherMember?.user?.id;
 
         if (otherUserId) {
@@ -1380,7 +1380,7 @@ export default function MensajesPage() {
               estado: 'Finalizada',
               fecha_completada: new Date().toISOString()
             })
-            .or(`and(estudiante_id.eq.${user.id},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${user.id},estudiante_id.eq.${otherUserId})`)
+            .or(`and(estudiante_id.eq.${user?.id},mentor_id.eq.${otherUserId}),and(mentor_id.eq.${user?.id},estudiante_id.eq.${otherUserId})`)
             .in('estado', ['Pendiente', 'Activa']);
         }
 
@@ -1487,7 +1487,7 @@ export default function MensajesPage() {
       // Send push notification to other users in channel
       const otherMembers = activeChannel.state.members;
       Object.keys(otherMembers).forEach(memberId => {
-        if (memberId !== user.id) {
+        if (memberId !== user?.id) {
           sendPushNotification(memberId, 'Nuevo mensaje', fileMessageText.trim() || 'Te enviaron una imagen');
         }
       });
@@ -1513,7 +1513,7 @@ export default function MensajesPage() {
       // Send push notification to other users in channel
       const otherMembers = activeChannel.state.members;
       Object.keys(otherMembers).forEach(memberId => {
-        if (memberId !== user.id) {
+        if (memberId !== user?.id) {
           sendPushNotification(memberId, 'Nuevo mensaje', fileMessageText.trim() || 'Te enviaron un video');
         }
       });
@@ -1542,12 +1542,13 @@ export default function MensajesPage() {
               <p className="hidden sm:block text-gray-500 text-sm mt-0.5">Chatea con mentores y estudiantes.</p>
             </div>
             <div className="flex items-center gap-2 lg:gap-4">
-              <Header nombreUsuario={user?.nombre || 'Usuario'} initials={user?.nombre ? user.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U'} avatarUrl={user?.avatar_url} />
+              <Header nombreUsuario={user?.nombre || 'Usuario'} initials={user?.nombre ? user.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U'} avatarUrl={user?.avatar_url || ''} />
             </div>
           </div>
         </div>
 
-        <Chat client={chatClient} theme="messaging light" key={chatClient?.user?.id || 'disconnected'}>
+        {chatClient && chatClient.userID ? (
+          <Chat client={chatClient} theme="messaging light" key={chatClient?.user?.id || 'disconnected'}>
           {channelFromUrl && (
             <ChannelSelector channelId={channelFromUrl} setMobileView={setMobileView} />
           )}
@@ -1637,11 +1638,13 @@ export default function MensajesPage() {
                   userId={user?.id}
                   onBackClick={() => { setActiveChannel(null); setMobileView('list'); }}
                   mentoriaBlockedMsg={mentoriaBlockedMsg}
+                  user={user}
                 />
               </div>
             </div>
           </div>
         </Chat>
+        ) : null}
       </div>
 
       {/* FILE PREVIEW MODALS */}
@@ -1729,7 +1732,7 @@ export default function MensajesPage() {
               // Send push notification to other users in channel
               const otherMembers = activeChannel.state.members;
               Object.keys(otherMembers).forEach(memberId => {
-                if (memberId !== user.id) {
+                if (memberId !== user?.id) {
                   sendPushNotification(memberId, 'Nuevo mensaje', text.trim() || `Te enviaron ${pendingFile.name}`);
                 }
               });
