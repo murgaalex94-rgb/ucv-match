@@ -41,3 +41,10 @@ yarn-error.log*
 
 # Logs
 *.log
+
+# APK files (too large for git)
+*.apk
+public/*.apk
+
+# Android (Capacitor)
+android/

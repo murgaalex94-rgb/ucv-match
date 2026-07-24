@@ -5,6 +5,10 @@
       "destination": "/api/$1"
     },
     {
+      "source": "/UCV-Match.apk",
+      "destination": "/UCV-Match.apk"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

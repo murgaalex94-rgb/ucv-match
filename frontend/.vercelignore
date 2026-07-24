@@ -1,0 +1,20 @@
+# Android (Capacitor build)
+android/
+
+# Node modules (Vercel installs its own)
+node_modules/
+
+# APK files
+*.apk
+
+# Capacitor config (not needed for web deploy)
+capacitor.config.ts
+capacitor.config.json
+
+# Env files
+.env
+.env.local
+
+# Logs
+*.log
+vite.log
