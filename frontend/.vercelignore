@@ -18,3 +18,21 @@ capacitor.config.json
 # Logs
 *.log
 vite.log
+
+# Large PDF files in public folder
+public/Carreras universitarias/
+
+# Build artifacts
+dist/
+build/
+
+# Git
+.git/
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -916,51 +916,50 @@ function MentoriasPage() {
                 <div className="space-y-4">
                   {sesionesHoy.map((session) => (
                     <div key={session.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                          <div className="flex flex-col items-center bg-[#0f2a5c] text-white rounded-xl p-3 min-w-[70px]">
-                            <span className="text-xl font-bold">{formatTime(session.fecha_solicitud)}</span>
-                            <span className="text-xs text-blue-100">Hoy</span>
+                      <div className="flex flex-col gap-4">
+                        {/* Top row: Time badge + Avatar + Name + Badges */}
+                        <div className="flex items-start gap-3 sm:gap-4">
+                          <div className="flex flex-col items-center bg-[#0f2a5c] text-white rounded-xl p-2.5 sm:p-3 min-w-[60px] sm:min-w-[70px] shrink-0">
+                            <span className="text-lg sm:text-xl font-bold">{formatTime(session.fecha_solicitud)}</span>
+                            <span className="text-[10px] sm:text-xs text-blue-100">Hoy</span>
                           </div>
-                          <div className="flex items-center gap-3">
-                            {esMentor ? session.estudiante?.avatar_url ? (
-                              <img 
-                                src={session.estudiante.avatar_url} 
-                                alt={session.estudiante.nombre_completo}
-                                className="w-12 h-12 rounded-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
-                                {getInitials(session.estudiante?.nombre_completo)}
-                              </div>
-                            ) : session.mentor?.avatar_url ? (
-                              <img 
-                                src={session.mentor.avatar_url} 
-                                alt={session.mentor.nombre_completo}
-                                className="w-12 h-12 rounded-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
-                                {getInitials(session.mentor?.nombre_completo)}
-                              </div>
-                            )}
-                            <div>
-                              <p className="font-semibold text-gray-800 text-sm">{esMentor ? (session.estudiante?.nombre_completo || 'Estudiante') : (session.mentor?.nombre_completo || 'Mentor')}</p>
-                              <p className="text-gray-500 text-xs">{esMentor ? (session.estudiante?.carrera || 'Carrera no especificada') : (session.mentor?.carrera || 'Carrera no especificada')}</p>
+                          {esMentor ? session.estudiante?.avatar_url ? (
+                            <img 
+                              src={session.estudiante.avatar_url} 
+                              alt={session.estudiante.nombre_completo}
+                              className="w-11 h-11 sm:w-12 sm:h-12 rounded-full object-cover shrink-0"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">
+                              {getInitials(session.estudiante?.nombre_completo)}
+                            </div>
+                          ) : session.mentor?.avatar_url ? (
+                            <img 
+                              src={session.mentor.avatar_url} 
+                              alt={session.mentor.nombre_completo}
+                              className="w-11 h-11 sm:w-12 sm:h-12 rounded-full object-cover shrink-0"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">
+                              {getInitials(session.mentor?.nombre_completo)}
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-800 text-sm truncate">{esMentor ? (session.estudiante?.nombre_completo || 'Estudiante') : (session.mentor?.nombre_completo || 'Mentor')}</p>
+                            <p className="text-gray-500 text-xs truncate">{esMentor ? (session.estudiante?.carrera || 'Carrera no especificada') : (session.mentor?.carrera || 'Carrera no especificada')}</p>
+                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Online</span>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(session.estado)}`}>
+                                {getEstadoLabel(session.estado)}
+                              </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Online</span>
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(session.estado)}`}>
-                              {getEstadoLabel(session.estado)}
-                            </span>
-                          </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                           <button 
                             onClick={() => handleOpenChat(session)}
                             disabled={session.estado !== 'Activa'}
-                            className={`bg-[#0f2a5c] text-white px-5 py-2 min-h-[44px] rounded-xl font-medium text-sm hover:bg-[#0f2a5c]/90 transition flex items-center gap-1.5 ${session.estado !== 'Activa' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`bg-[#0f2a5c] text-white px-5 py-2 min-h-[44px] rounded-xl font-medium text-sm hover:bg-[#0f2a5c]/90 transition flex items-center justify-center gap-1.5 ${session.estado !== 'Activa' ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <Send className="w-4 h-4" /> Chatear
                           </button>
@@ -991,8 +990,8 @@ function MentoriasPage() {
                     return (
                       <div key={session.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                          <div className="flex items-center gap-4">
-                            <div className="flex flex-col items-center bg-gray-100 rounded-xl p-3 min-w-[60px]">
+                          <div className="flex items-center gap-3 sm:gap-4">
+                            <div className="flex flex-col items-center bg-gray-100 rounded-xl p-3 min-w-[60px] shrink-0">
                               <span className="text-xl font-bold text-gray-800">{sessionDate.getDate()}</span>
                               <span className="text-xs text-gray-500 capitalize">{sessionDate.toLocaleDateString('es-ES', { weekday: 'short' })}</span>
                             </div>
@@ -1001,29 +1000,29 @@ function MentoriasPage() {
                               <img 
                                 src={session.estudiante.avatar_url} 
                                 alt={session.estudiante.nombre_completo}
-                                className="w-10 h-10 rounded-full object-cover"
+                                className="w-10 h-10 rounded-full object-cover shrink-0"
                               />
                             ) : (
-                              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
+                              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">
                                 {getInitials(session.estudiante?.nombre_completo)}
                               </div>
                             ) : session.mentor?.avatar_url ? (
                               <img 
                                 src={session.mentor.avatar_url} 
                                 alt={session.mentor.nombre_completo}
-                                className="w-10 h-10 rounded-full object-cover"
+                                className="w-10 h-10 rounded-full object-cover shrink-0"
                               />
                             ) : (
-                              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500">
+                              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">
                                 {getInitials(session.mentor?.nombre_completo)}
                               </div>
                             )}
-                            <div>
-                              <p className="font-semibold text-gray-800 text-sm">{esMentor ? (session.estudiante?.nombre_completo || 'Estudiante') : (session.mentor?.nombre_completo || 'Mentor')}</p>
-                              <p className="text-gray-500 text-xs">{esMentor ? (session.estudiante?.carrera || 'Carrera no especificada') : (session.mentor?.carrera || 'Carrera no especificada')}</p>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-800 text-sm truncate">{esMentor ? (session.estudiante?.nombre_completo || 'Estudiante') : (session.mentor?.nombre_completo || 'Mentor')}</p>
+                              <p className="text-gray-500 text-xs truncate">{esMentor ? (session.estudiante?.carrera || 'Carrera no especificada') : (session.mentor?.carrera || 'Carrera no especificada')}</p>
                             </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 shrink-0">
                               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Online</span>
                               <div className="flex flex-col items-start gap-0.5">
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(session.estado)}`}>
@@ -1035,7 +1034,7 @@ function MentoriasPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex flex-col sm:flex-row gap-2">
                             {esMentor && isPendiente ? (
                               <>
                                 <button onClick={() => handleAcceptSession(session)}

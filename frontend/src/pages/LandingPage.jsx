@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { BookOpen, Users, Award } from 'lucide-react';
+import { BookOpen, Users, Award, Download } from 'lucide-react';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -60,6 +60,20 @@ export default function LandingPage() {
                 className="w-full md:w-auto px-5 py-3 bg-white text-[#0a1f3d] rounded-lg text-sm font-medium hover:bg-gray-100 transition min-h-[44px] py-3 md:py-2"
               >
                 Registrarse
+              </button>
+            </motion.div>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+              className="w-full md:w-auto"
+            >
+              <button
+                onClick={() => navigate('/descargar')}
+                className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-3 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition min-h-[44px] py-3 md:py-2 shadow-lg"
+              >
+                <Download className="w-4 h-4" />
+                Descargar App
               </button>
             </motion.div>
           </div>

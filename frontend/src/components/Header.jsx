@@ -26,25 +26,6 @@ export default function Header({ notificacionesNoLeidas = 0, nombreUsuario = '',
 
   return (
     <div className="flex items-center gap-2 sm:gap-4">
-      <div className="relative" ref={notifRef}>
-        <button
-          onClick={() => setShowNotifPanel(prev => !prev)}
-          className="relative p-2 bg-gray-100 rounded-full text-gray-600 hover:bg-gray-200 transition-colors"
-        >
-          <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
-          {notificacionesNoLeidas > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 shadow">
-              {notificacionesNoLeidas > 99 ? '99+' : notificacionesNoLeidas}
-            </span>
-          )}
-        </button>
-        {showNotifPanel && (
-          <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-4 z-50">
-            <p className="text-sm text-gray-500 text-center">No tienes notificaciones</p>
-          </div>
-        )}
-      </div>
-
       <div className="relative" ref={userRef}>
         <div
           onClick={() => setShowUserMenu(prev => !prev)}
@@ -76,6 +57,25 @@ export default function Header({ notificacionesNoLeidas = 0, nombreUsuario = '',
               <LogOut className="w-4 h-4" />
               Cerrar Sesión
             </button>
+          </div>
+        )}
+      </div>
+
+      <div className="relative" ref={notifRef}>
+        <button
+          onClick={() => setShowNotifPanel(prev => !prev)}
+          className="relative p-2 bg-gray-100 rounded-full text-gray-600 hover:bg-gray-200 transition-colors"
+        >
+          <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+          {notificacionesNoLeidas > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 shadow">
+              {notificacionesNoLeidas > 99 ? '99+' : notificacionesNoLeidas}
+            </span>
+          )}
+        </button>
+        {showNotifPanel && (
+          <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-4 z-50">
+            <p className="text-sm text-gray-500 text-center">No tienes notificaciones</p>
           </div>
         )}
       </div>

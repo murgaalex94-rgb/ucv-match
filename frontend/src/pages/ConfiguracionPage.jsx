@@ -449,12 +449,12 @@ export default function ConfiguracionPage() {
 
       <div className="flex-1 lg:ml-64 p-4 lg:p-8">
         <div className="max-w-4xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><Settings className="w-6 h-6 text-[#0f2a5c]" />Configuración</h1>
               <p className="text-gray-500 text-sm mt-1">Administra tu cuenta y preferencias.</p>
             </div>
-            <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className="flex items-center gap-4 w-full lg:w-auto">
               <Header nombreUsuario={nombreCompleto} initials={initials} avatarUrl={profileData?.avatar_url} />
             </div>
           </div>
@@ -516,14 +516,14 @@ export default function ConfiguracionPage() {
                   <p className="text-sm text-gray-500">{userRol || 'Usuario'}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Nombres</label>
                   <input
                     type="text"
                     value={formData.nombres}
                     onChange={(e) => setFormData({ ...formData, nombres: e.target.value })}
-                    className="w-full px-4 py-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
                   />
                 </div>
                 <div>
@@ -532,14 +532,14 @@ export default function ConfiguracionPage() {
                     type="text"
                     value={formData.apellidos}
                     onChange={(e) => setFormData({ ...formData, apellidos: e.target.value })}
-                    className="w-full px-4 py-4 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f2a5c]/20 focus:border-[#0f2a5c]"
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="lg:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Correo electrónico institucional</label>
                   <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 rounded-xl border-none text-sm text-gray-500">
                     <Lock className="w-4 h-4 text-gray-400 shrink-0" />
-                    <span>{formData.email}</span>
+                    <span className="truncate">{formData.email}</span>
                   </div>
                 </div>
                 <div>
@@ -562,7 +562,7 @@ export default function ConfiguracionPage() {
                     <option value="Femenino">Femenino</option>
                   </select>
                 </div>
-                <div className="col-span-2">
+                <div className="lg:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Biografía</label>
                   <textarea
                     value={formData.biografia}
@@ -572,7 +572,7 @@ export default function ConfiguracionPage() {
                     placeholder="Cuéntanos sobre ti..."
                   />
                 </div>
-                <div className="col-span-2 flex justify-end">
+                <div className="lg:col-span-2 flex justify-end">
                   <button 
                     onClick={handleSaveProfile}
                     className="bg-[#0f2a5c] text-white px-6 py-2.5 min-h-[44px] rounded-xl text-sm font-medium hover:bg-[#0f2a5c]/90 transition flex items-center gap-2"
@@ -589,7 +589,7 @@ export default function ConfiguracionPage() {
                 <User className="w-5 h-5 text-[#0f2a5c]" />
                 Información de la Cuenta
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de cuenta</label>
                   <div className="px-4 py-3 bg-gray-50 rounded-xl text-sm text-gray-700">{userRol || 'No especificado'}</div>

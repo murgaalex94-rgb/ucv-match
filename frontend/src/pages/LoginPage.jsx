@@ -29,6 +29,7 @@ const LoginPage = () => {
   const [resetCaptchaToken, setResetCaptchaToken] = useState(null)
   const [geoChecked, setGeoChecked] = useState(false)
   const [geoAllowed, setGeoAllowed] = useState(true)
+  const [emailError, setEmailError] = useState('')
   
   // Rate limiting: failed attempts tracking
   const [failedAttempts, setFailedAttempts] = useState(() => parseInt(localStorage.getItem('login_failed_attempts') || '0', 10))
@@ -168,6 +169,24 @@ const LoginPage = () => {
     if (error) {
       alert('Error: ' + error.message)
     }
+  }
+
+  const validateEmail = (value) => {
+    if (!value) {
+      setEmailError('')
+      return
+    }
+    if (!value.endsWith('@ucvvirtual.edu.pe')) {
+      setEmailError('El correo debe terminar en @ucvvirtual.edu.pe')
+    } else {
+      setEmailError('')
+    }
+  }
+
+  const handleEmailChange = (e) => {
+    const value = e.target.value
+    setEmail(value)
+    validateEmail(value)
   }
 
   const handleLogin = async (e) => {
@@ -310,41 +329,38 @@ const LoginPage = () => {
 
             {/* Email */}
             <div className="relative">
-              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <User className="absolute left-3.5 top-[18px] text-slate-400 w-5 h-5 flex-shrink-0 pointer-events-none" />
               <input
                 type="text"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="Correo electrónico"
-                className="w-full pl-11 pr-12 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                onChange={handleEmailChange}
+                placeholder="Correo electrónico institucional"
+                className={`w-full pl-11 pr-4 py-4 border rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all ${emailError ? 'border-red-300 focus:border-red-500' : 'border-gray-200'}`}
                 required
               />
-              {/* Geo indicator - Desktop: inside input, Mobile: below input */}
+              {/* Geo indicator - Below input for both mobile and desktop */}
               {!geoChecked && (
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs md:block hidden">
+                <div className="text-gray-400 text-xs flex items-center gap-1 mt-2">
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                   Verificando...
                 </div>
               )}
               {!geoAllowed && geoChecked && (
-                <>
-                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-blue-600 text-xs flex items-center gap-1 md:block hidden">
-                    <Globe className="w-4 h-4" />
-                    Acceso solo desde Perú
-                  </div>
-                  <div className="text-blue-600 text-xs flex items-center gap-1 mt-2 md:hidden">
-                    <Globe className="w-4 h-4" />
-                    Acceso solo desde Perú
-                  </div>
-                </>
+                <div className="text-blue-600 text-xs flex items-center gap-1 mt-2">
+                  <Globe className="w-4 h-4" />
+                  Acceso solo desde Perú
+                </div>
               )}
               {geoAllowed && geoChecked && (
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-green-500 text-xs flex items-center gap-1">
+                <div className="text-green-500 text-xs flex items-center gap-1 mt-2">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a1 1 0 00-1.664-.828l-3 4a1 1 0 000 1.642l1.5 2a1 1 0 001.414 0l3-4z" clipRule="evenodd" /></svg>
                   IP verificada (Perú)
                 </div>
               )}
             </div>
+            {emailError && (
+              <div className="text-red-500 text-xs mt-1">{emailError}</div>
+            )}
 
             {/* Password */}
             <div className="relative">
