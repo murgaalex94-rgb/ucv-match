@@ -218,11 +218,11 @@ const RegisterPage = () => {
       className="flex w-full min-h-screen bg-white overflow-y-auto font-sans">
 
       {/* COLUMNA IZQUIERDA - IMAGEN ÚNICA */}
-      <div className="hidden md:flex md:w-1/2 min-h-screen relative bg-[#0f2a5c] overflow-hidden">
+      <div className="hidden md:flex md:w-1/2 h-screen relative bg-[#0f2a5c] overflow-hidden">
         <img 
           src="/hero_panel_ucv.png" 
           alt="Panel UCV Match" 
-          className="w-full h-full object-contain object-bottom" 
+          className="w-full h-full object-cover object-center" 
         />
       </div>
 
