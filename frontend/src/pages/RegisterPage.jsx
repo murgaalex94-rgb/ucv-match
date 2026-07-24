@@ -222,7 +222,7 @@ const RegisterPage = () => {
         <img
           src="/Imagen_crear cuenta.png"
           alt="Encuentra tu mentor académico - UCV Match"
-          className="w-full h-full object-cover object-center select-none"
+          className="w-full h-full object-cover object-top select-none"
         />
       </div>
 
