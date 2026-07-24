@@ -222,7 +222,7 @@ const RegisterPage = () => {
         <img 
           src="/Imagen_crear cuenta.png" 
           alt="Panel UCV Match" 
-          className="w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover"
         />
       </div>
 
