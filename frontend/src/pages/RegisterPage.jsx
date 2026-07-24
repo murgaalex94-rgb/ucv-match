@@ -222,7 +222,7 @@ const RegisterPage = () => {
         <img 
           src="/hero_panel_ucv.png" 
           alt="Panel UCV Match" 
-          className="w-full h-full object-cover object-bottom" 
+          className="w-full h-full object-contain object-bottom" 
         />
       </div>
 
