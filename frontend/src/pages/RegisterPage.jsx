@@ -220,9 +220,10 @@ const RegisterPage = () => {
       {/* COLUMNA IZQUIERDA - IMAGEN ÚNICA */}
       <div className="hidden md:flex md:w-1/2 h-screen relative bg-[#0f2a5c] overflow-hidden">
         <img 
-          src="/hero_panel_ucv.png" 
+          src="/Imagen_crear cuenta.png" 
           alt="Panel UCV Match" 
-          className="w-full h-full object-cover object-center" 
+          className="w-full h-full object-cover object-top" 
+          style={{ minHeight: '100vh' }}
         />
       </div>
 
