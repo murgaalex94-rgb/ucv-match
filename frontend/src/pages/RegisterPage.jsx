@@ -251,67 +251,75 @@ const RegisterPage = () => {
 
             {/* Nombres y Apellidos */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                <input
-                  type="text"
-                  name="nombres"
-                  value={form.nombres}
-                  onChange={handleChange}
-                  placeholder="Nombres"
-                  className="w-full pl-11 pr-4 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
-                  required
-                />
+              <div>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
+                  <input
+                    type="text"
+                    name="nombres"
+                    value={form.nombres}
+                    onChange={handleChange}
+                    placeholder="Nombres"
+                    className="w-full pl-11 pr-4 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                    required
+                  />
+                </div>
                 {fieldErrors.nombres && <p className="text-red-500 text-xs mt-1">{fieldErrors.nombres}</p>}
               </div>
-              <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                <input
-                  type="text"
-                  name="apellidos"
-                  value={form.apellidos}
-                  onChange={handleChange}
-                  placeholder="Apellidos"
-                  className="w-full pl-11 pr-4 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
-                  required
-                />
+              <div>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
+                  <input
+                    type="text"
+                    name="apellidos"
+                    value={form.apellidos}
+                    onChange={handleChange}
+                    placeholder="Apellidos"
+                    className="w-full pl-11 pr-4 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                    required
+                  />
+                </div>
                 {fieldErrors.apellidos && <p className="text-red-500 text-xs mt-1">{fieldErrors.apellidos}</p>}
               </div>
             </div>
 
             {/* Código de Estudiante */}
-            <div className="relative">
-              <CreditCard className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-              <input
-                type="text"
-                name="codigoEstudiante"
-                value={form.codigoEstudiante}
-                onChange={handleChange}
-                placeholder="Código de Estudiante"
-                className="w-full pl-11 pr-12 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
-                required
-              />
+            <div>
+              <div className="relative">
+                <CreditCard className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
+                <input
+                  type="text"
+                  name="codigoEstudiante"
+                  value={form.codigoEstudiante}
+                  onChange={handleChange}
+                  placeholder="Código de Estudiante"
+                  className="w-full pl-11 pr-12 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                  required
+                />
+              </div>
               {fieldErrors.codigoEstudiante && <p className="text-red-500 text-xs mt-1">{fieldErrors.codigoEstudiante}</p>}
             </div>
 
             {/* Email */}
-            <div className="relative">
-              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-              <input
-                type="email"
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                placeholder="correo Institucional"
-                className={`w-full pl-11 pr-12 py-4 border rounded-xl text-sm focus:ring-2 outline-none transition-all ${
-                  form.email && !emailValid
-                    ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
-                    : emailValid
-                      ? 'border-green-300 focus:ring-green-200 focus:border-green-500'
-                      : 'border-gray-200 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c]'
-                }`}
-                required
-              />
+            <div>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
+                <input
+                  type="email"
+                  name="email"
+                  value={form.email}
+                  onChange={handleChange}
+                  placeholder="correo Institucional"
+                  className={`w-full pl-11 pr-12 py-4 border rounded-xl text-sm focus:ring-2 outline-none transition-all ${
+                    form.email && !emailValid
+                      ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                      : emailValid
+                        ? 'border-green-300 focus:ring-green-200 focus:border-green-500'
+                        : 'border-gray-200 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c]'
+                  }`}
+                  required
+                />
+              </div>
               {form.email.length > 0 && (
                 <div className="flex items-center gap-1.5 mt-1.5">
                   {emailValid ? (
@@ -331,72 +339,76 @@ const RegisterPage = () => {
             </div>
 
             {/* Password */}
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-              <input
-                type={showPwd ? 'text' : 'password'}
-                name="password"
-                value={form.password}
-                onChange={handleChange}
-                placeholder="Contraseña"
-                className="w-full pl-11 pr-11 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPwd(!showPwd)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                {showPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-              {fieldErrors.password && <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>}
-            </div>
-            {form.password && (
-              <div className="mt-2 space-y-1.5 text-xs">
-                {[
-                  { label: 'Al menos 8 caracteres', test: form.password.length >= 8 },
-                  { label: '1 letra mayúscula', test: /[A-Z]/.test(form.password) },
-                  { label: '1 letra minúscula', test: /[a-z]/.test(form.password) },
-                  { label: '1 número', test: /[0-9]/.test(form.password) },
-                  { label: '1 carácter especial', test: /[^A-Za-z0-9]/.test(form.password) },
-                ].map((req) => (
-                  <div key={req.label} className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${req.test ? 'bg-green-500' : 'bg-red-500'}`} />
-                    <span className={req.test ? 'text-green-700' : 'text-red-600'}>{req.label}</span>
-                  </div>
-                ))}
+            <div>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
+                <input
+                  type={showPwd ? 'text' : 'password'}
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
+                  placeholder="Contraseña"
+                  className="w-full pl-11 pr-11 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(!showPwd)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
-            )}
+              {fieldErrors.password && <p className="text-red-500 text-xs mt-1">{fieldErrors.password}</p>}
+              {form.password && (
+                <div className="mt-2 space-y-1.5 text-xs">
+                  {[
+                    { label: 'Al menos 8 caracteres', test: form.password.length >= 8 },
+                    { label: '1 letra mayúscula', test: /[A-Z]/.test(form.password) },
+                    { label: '1 letra minúscula', test: /[a-z]/.test(form.password) },
+                    { label: '1 número', test: /[0-9]/.test(form.password) },
+                    { label: '1 carácter especial', test: /[^A-Za-z0-9]/.test(form.password) },
+                  ].map((req) => (
+                    <div key={req.label} className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${req.test ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className={req.test ? 'text-green-700' : 'text-red-600'}>{req.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Confirmar Contraseña */}
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-              <input
-                type={showConfirmPwd ? 'text' : 'password'}
-                name="confirmPassword"
-                value={form.confirmPassword}
-                onChange={handleChange}
-                placeholder="Confirmar contraseña"
-                className="w-full pl-11 pr-11 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPwd(!showConfirmPwd)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                {showConfirmPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-              {fieldErrors.confirmPassword && <p className="text-red-500 text-xs mt-1">{fieldErrors.confirmPassword}</p>}
-            </div>
-            {form.confirmPassword && (
-              <div className="mt-1 flex items-center gap-2 text-xs">
-                <span className={`w-2 h-2 rounded-full ${form.password === form.confirmPassword ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className={form.password === form.confirmPassword ? 'text-green-700' : 'text-red-500'}>
-                  Las contraseñas{form.password === form.confirmPassword ? '' : ' no'} coinciden
-                </span>
+            <div>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
+                <input
+                  type={showConfirmPwd ? 'text' : 'password'}
+                  name="confirmPassword"
+                  value={form.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Confirmar contraseña"
+                  className="w-full pl-11 pr-11 py-4 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#0f2a5c]/30 focus:border-[#0f2a5c] outline-none transition-all"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showConfirmPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
-            )}
+              {fieldErrors.confirmPassword && <p className="text-red-500 text-xs mt-1">{fieldErrors.confirmPassword}</p>}
+              {form.confirmPassword && (
+                <div className="mt-1 flex items-center gap-2 text-xs">
+                  <span className={`w-2 h-2 rounded-full ${form.password === form.confirmPassword ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className={form.password === form.confirmPassword ? 'text-green-700' : 'text-red-500'}>
+                    Las contraseñas{form.password === form.confirmPassword ? '' : ' no'} coinciden
+                  </span>
+                </div>
+              )}
+            </div>
 
             {/* Selector de Rol */}
             <div>
