@@ -219,9 +219,10 @@ const RegisterPage = () => {
 
       {/* COLUMNA IZQUIERDA - IMAGEN ÚNICA */}
       <div className="hidden md:flex md:w-1/2 h-screen relative bg-[#0f2a5c]">
-        <div 
-          className="absolute inset-0 bg-contain bg-center bg-no-repeat"
-          style={{ backgroundImage: 'url("/Imagen_crear cuenta.png")' }}
+        <img 
+          src="/Imagen_crear cuenta.png" 
+          alt="Panel UCV Match" 
+          className="w-full h-full object-fill"
         />
       </div>
 
